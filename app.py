@@ -63,13 +63,165 @@ def report_html(compound, cas, cls, detail, synthesis):
     now=datetime.now().strftime('%d/%m/%Y %H:%M')
     return f"""<html><head><meta charset='utf-8'><title>Relatório CETESBRisk Explorer - {compound}</title><style>body{{font-family:Arial;margin:40px;color:#1F2A44}}h1,h2{{color:#0B2A4A}}.box{{background:#f3f6fa;border-left:5px solid #0B5CAD;padding:15px;margin:20px 0}}table{{border-collapse:collapse;width:100%;font-size:11px}}th,td{{border:1px solid #ddd;padding:6px}}th{{background:#0B5CAD;color:white}}</style></head><body><h1>CETESBRisk Explorer</h1><h2>Relatório técnico por SQI</h2><p><b>Data/hora:</b> {now}</p><p><b>Substância:</b> {compound}</p><p><b>CAS:</b> {cas}</p><p><b>Classe:</b> {cls} - {CLASS_DESCRIPTIONS[cls]['descricao']}</p><div class='box'>{synthesis}</div><h2>Comparativo por parâmetro</h2>{detail.to_html(index=False,border=0)}</body></html>"""
 
+
+def to_float_series(s):
+    return pd.to_numeric(s, errors='coerce')
+
+def top_sqi_by_parameter_changes(comp, fonte, n=5):
+    df = comp.copy()
+    df = df[df['Fonte'].astype(str).str.lower() == fonte.lower()]
+    df = df[df.apply(changed, axis=1)].copy()
+    if df.empty:
+        return pd.DataFrame(columns=['SQI','CAS','Nº parâmetros alterados','Maior variação absoluta (%)','Principais parâmetros alterados'])
+
+    df['abs_var'] = to_float_series(df.get('Variação % Parâmetro', pd.Series(dtype=float))).abs()
+    grouped = (
+        df.groupby(['Analito 2026','CAS'], dropna=False)
+        .agg(**{
+            'Nº parâmetros alterados': ('Parâmetro','nunique'),
+            'Maior variação absoluta (%)': ('abs_var','max'),
+            'Principais parâmetros alterados': ('Parâmetro', lambda x: ', '.join(pd.Series(x).dropna().astype(str).unique()[:6]))
+        })
+        .reset_index()
+        .rename(columns={'Analito 2026':'SQI'})
+    )
+    grouped['Maior variação absoluta (%)'] = grouped['Maior variação absoluta (%)'].round(2)
+    return grouped.sort_values(['Nº parâmetros alterados','Maior variação absoluta (%)'], ascending=False).head(n)
+
+def top_cma_impact(comp, direction='reduz', n=5):
+    df = comp.copy()
+    df = df[df.apply(changed, axis=1)].copy()
+    df['Estimativa variação CMA % num'] = to_float_series(df.get('Estimativa variação CMA %', pd.Series(dtype=float)))
+    df = df.dropna(subset=['Estimativa variação CMA % num'])
+    if direction == 'reduz':
+        df = df[df['Estimativa variação CMA % num'] < 0]
+        sort_ascending = True
+    else:
+        df = df[df['Estimativa variação CMA % num'] > 0]
+        sort_ascending = False
+
+    if df.empty:
+        return pd.DataFrame(columns=['SQI','CAS','Parâmetro crítico','Variação estimada CMA (%)','Tendência esperada da CMA'])
+
+    df['abs_cma'] = df['Estimativa variação CMA % num'].abs()
+    idx = df.groupby(['Analito 2026','CAS'], dropna=False)['abs_cma'].idxmax()
+    out = df.loc[idx, ['Analito 2026','CAS','Parâmetro','Estimativa variação CMA % num','Tendência esperada da CMA']].copy()
+    out = out.rename(columns={
+        'Analito 2026':'SQI',
+        'Parâmetro':'Parâmetro crítico',
+        'Estimativa variação CMA % num':'Variação estimada CMA (%)'
+    })
+    out['Variação estimada CMA (%)'] = out['Variação estimada CMA (%)'].round(2)
+    return out.sort_values('Variação estimada CMA (%)', ascending=sort_ascending).head(n)
+
+def build_interpretive_synthesis(selected, cas, cls, detail):
+    ch = detail[detail.apply(changed, axis=1)].copy()
+    class_desc = CLASS_DESCRIPTIONS[cls]['descricao']
+    rec = CLASS_DESCRIPTIONS[cls]['recomendacao']
+
+    if ch.empty:
+        return (
+            f"A comparação entre as versões CETESBRisk v3.03 e v4.00 indica que a SQI {selected} "
+            f"(CAS {cas}) não apresentou alterações materiais relevantes nos parâmetros avaliados. "
+            f"O composto foi enquadrado na Classe {cls} ({class_desc}), indicando que a atualização da planilha, "
+            f"isoladamente, não justifica revisão da avaliação de risco para esta SQI. A necessidade de revisão deve ser "
+            f"considerada apenas se houver mudança do modelo conceitual, das vias de exposição, do uso da área ou de outras premissas do estudo."
+        )
+
+    tox_params = ['RfDo','RfCi','SFO','IUR','Classe de Cancer','Mutagenico','CARCINOGÊNICO']
+    reg_params = ['MCL','Potabilidade']
+    phys_params = ['H (-)','HLC (atm-m³/mole)','Koc','Kd (L/kg)','S (mg/L)','Pvap (mm Hg)','Csat','log Kow','Densidade']
+
+    tox = ch[ch['Parâmetro'].isin(tox_params)]
+    reg = ch[ch['Parâmetro'].isin(reg_params)]
+    phys = ch[ch['Parâmetro'].isin(phys_params)]
+
+    def params_txt(df):
+        vals = df['Parâmetro'].dropna().astype(str).unique().tolist()
+        if not vals:
+            return ""
+        return ", ".join(vals[:5]) + (" entre outros" if len(vals) > 5 else "")
+
+    ch2 = ch.copy()
+    ch2['abs_var'] = pd.to_numeric(ch2.get('Variação % Parâmetro', pd.Series(dtype=float)), errors='coerce').abs()
+    ch2 = ch2.dropna(subset=['abs_var']).sort_values('abs_var', ascending=False)
+    if not ch2.empty:
+        top = ch2.iloc[0]
+        try:
+            top_var = f"{float(top.get('Variação % Parâmetro')):.1f}%"
+        except Exception:
+            top_var = str(top.get('Variação % Parâmetro',''))
+        top_sentence = f"A maior variação percentual observada ocorreu em {top.get('Parâmetro','')}, de {top.get('Valor 2023','')} para {top.get('Valor 2026','')} ({top_var}). "
+    else:
+        top_sentence = ""
+
+    tendencies = ch['Tendência esperada da CMA'].dropna().astype(str).str.lower().tolist()
+    cma_reduce = any(('redu' in t or 'dimin' in t or 'restritiva' in t) for t in tendencies)
+    cma_increase = any(('aument' in t or 'menos restritiva' in t) for t in tendencies)
+
+    if cls == 'A':
+        text = (
+            f"A SQI {selected} (CAS {cas}) foi enquadrada na Classe A, pois as alterações identificadas não configuram mudança material "
+            f"capaz de alterar de forma relevante o risco calculado ou a CMA. {top_sentence}"
+            f"A expectativa técnica é de ausência de impacto material sobre a avaliação de risco, considerando exclusivamente a atualização da planilha."
+        )
+    elif cls == 'B':
+        text = (
+            f"A SQI {selected} (CAS {cas}) foi enquadrada na Classe B, indicando alterações menores ou refinamentos paramétricos. {top_sentence}"
+            f"Não há indicação automática de revisão da avaliação de risco, embora a revisão possa ser considerada em cenários muito sensíveis "
+            f"ou quando a avaliação anterior estiver próxima dos critérios de aceitabilidade."
+        )
+    elif cls == 'C':
+        p = params_txt(reg)
+        text = (
+            f"A SQI {selected} (CAS {cas}) foi enquadrada na Classe C, associada a alterações regulatórias ou de potabilidade. "
+            f"{'As alterações observadas envolveram principalmente ' + p + '. ' if p else ''}"
+            f"Essa classificação não significa, por si só, alteração material do cálculo de risco ou da CMA. "
+            f"O principal efeito esperado é sobre o enquadramento regulatório, atualização de tabelas comparativas ou discussão de potabilidade, "
+            f"especialmente quando houver avaliação da via de ingestão de água subterrânea."
+        )
+    elif cls == 'D1':
+        p = params_txt(tox)
+        if cma_reduce:
+            trend = "A tendência esperada é de redução da CMA para a rota controlada pelo parâmetro alterado, tornando a avaliação potencialmente mais restritiva. "
+        elif cma_increase:
+            trend = "A tendência esperada é de aumento da CMA para a rota controlada pelo parâmetro alterado, tornando a avaliação potencialmente menos restritiva. "
+        else:
+            trend = "O impacto sobre a CMA deve ser avaliado conforme a via de exposição dominante e o parâmetro efetivamente controlador do risco. "
+        text = (
+            f"A SQI {selected} (CAS {cas}) foi enquadrada na Classe D1, indicando alteração relevante em parâmetro toxicológico ou em atributo diretamente associado ao cálculo de risco. "
+            f"{'As alterações envolveram principalmente ' + p + '. ' if p else ''}{top_sentence}{trend}"
+            f"Recomenda-se revisão dirigida quando esta SQI for relevante no modelo conceitual, especialmente se os resultados anteriores estiverem próximos aos limites aceitáveis."
+        )
+    elif cls == 'D2':
+        p = params_txt(phys)
+        text = (
+            f"A SQI {selected} (CAS {cas}) foi enquadrada na Classe D2, indicando alteração relevante em parâmetros físico-químicos. "
+            f"{'As alterações envolveram principalmente ' + p + '. ' if p else ''}{top_sentence}"
+            f"Essas alterações não representam necessariamente mudança direta de toxicidade, mas podem modificar o comportamento ambiental da substância, "
+            f"influenciando volatilização, particionamento, transporte, concentração de saturação ou intrusão de vapores. "
+            f"O impacto sobre CMA é modelo-dependente e deve ser avaliado principalmente em cenários sensíveis à inalação, fase vapor ou transporte entre fonte e ponto de exposição."
+        )
+    else:
+        text = f"A SQI {selected} (CAS {cas}) foi enquadrada na Classe {cls} ({class_desc}). {rec}"
+
+    if cls in ['D1','D2']:
+        text += " Em termos práticos, a atualização deve ser tratada como gatilho de triagem técnica, não como obrigação automática de refazimento integral da avaliação."
+    elif cls == 'C':
+        text += " Assim, a ação prioritária é verificar o enquadramento legal/regulatório aplicável, sem assumir automaticamente necessidade de recálculo do risco."
+    else:
+        text += " Assim, a atualização da planilha, isoladamente, não indica necessidade de revisão da avaliação de risco para esta SQI."
+
+    return text
+
+
 comp,incl,remov,alt,impacto=load_data(); master=build_master(comp)
 
 st.sidebar.title('🧪 CETESBRisk Explorer')
 st.sidebar.markdown('**Desenvolvido por André Souza**  \nEspecialista em GAC')
 st.sidebar.divider()
 page=st.sidebar.radio('Navegação',['Início','Dashboard geral','Pesquisa SQI e impacto CMA','Grupos prioritários','Highlights Manual CETESB','Downloads e notas'])
-st.sidebar.caption('v0.4 · revisão executiva')
+st.sidebar.caption('v0.6 · rankings dashboard')
 
 if page=='Início':
     st.title('🧪 CETESBRisk Explorer')
@@ -132,17 +284,56 @@ A abordagem recomendada é uma **triagem dirigida**, priorizando substâncias cl
 elif page=='Dashboard geral':
     st.title('Dashboard geral')
     st.write('Exploração quantitativa dos pontos de dados comparados entre as versões v3.03 e v4.00.')
-    c1,c2,c3,c4=st.columns(4); c1.metric('Pontos de dados analisados','29.484'); c2.metric('Com alteração','1.009','3,4% do total'); c3.metric('Sem alteração','16.565'); c4.metric('Sem valor/vazios','11.910')
+
+    c1,c2,c3,c4=st.columns(4)
+    c1.metric('Pontos de dados analisados','29.484')
+    c2.metric('Com alteração','1.009','3,4% do total')
+    c3.metric('Sem alteração','16.565')
+    c4.metric('Sem valor/vazios','11.910')
+
     st.subheader('Distribuição consolidada dos compostos por classe de alteração')
     chart_df=pd.DataFrame({'Classe':list(FIXED_CLASS_COUNTS.keys()),'N compostos':list(FIXED_CLASS_COUNTS.values())})
-    fig=px.bar(chart_df,x='Classe',y='N compostos',color='Classe',text='N compostos',hover_data={'Classe':True,'N compostos':True},title='Compostos por classe de alteração'); fig.update_traces(textposition='outside'); fig.update_layout(yaxis_title='Nº de compostos',xaxis_title='Classe')
+    fig=px.bar(chart_df,x='Classe',y='N compostos',color='Classe',text='N compostos',hover_data={'Classe':True,'N compostos':True},title='Compostos por classe de alteração')
+    fig.update_traces(textposition='outside', hovertemplate='<b>Classe %{x}</b><br>Nº de compostos: %{y}<extra></extra>')
+    fig.update_layout(yaxis_title='Nº de compostos',xaxis_title='Classe')
     st.plotly_chart(fig,use_container_width=True)
+
     st.subheader('Composição dos pontos de dados avaliados')
     flow_df=pd.DataFrame({'Categoria':['Com alteração','Sem alteração','Sem valor/vazios'],'N':[1009,16565,11910]})
-    fig2=px.bar(flow_df,x='Categoria',y='N',color='Categoria',text='N',title='Status dos 29.484 pontos de dados avaliados'); fig2.update_traces(textposition='outside')
+    fig2=px.bar(flow_df,x='Categoria',y='N',color='Categoria',text='N',title='Status dos 29.484 pontos de dados avaliados')
+    fig2.update_traces(textposition='outside', hovertemplate='<b>%{x}</b><br>Nº de pontos: %{y}<extra></extra>')
     st.plotly_chart(fig2,use_container_width=True)
+
+    st.divider()
+    st.subheader('Rankings de atenção técnica')
+    st.markdown('Os rankings abaixo ajudam a identificar SQIs com maior número de alterações em parâmetros físico-químicos, toxicológicos e maior impacto potencial estimado sobre CMA. A interpretação deve considerar o modelo conceitual, as vias de exposição e a relevância da SQI no estudo.')
+
+    tab_fisqui,tab_fattox,tab_cma_down,tab_cma_up=st.tabs(['Top 5 FisQui','Top 5 FatTox','Top 5 CMA mais restritiva','Top 5 CMA menos restritiva'])
+
+    with tab_fisqui:
+        st.markdown('**SQIs com maior número de alterações em parâmetros físico-químicos (FisQui).**')
+        st.caption('Critério: número de parâmetros FisQui alterados; desempate pela maior variação percentual absoluta.')
+        st.dataframe(top_sqi_by_parameter_changes(comp,'FisQui',5),use_container_width=True,hide_index=True)
+
+    with tab_fattox:
+        st.markdown('**SQIs com maior número de alterações em parâmetros toxicológicos/regulatórios (FatTox).**')
+        st.caption('Critério: número de parâmetros FatTox alterados; desempate pela maior variação percentual absoluta.')
+        st.dataframe(top_sqi_by_parameter_changes(comp,'FatTox',5),use_container_width=True,hide_index=True)
+
+    with tab_cma_down:
+        st.markdown('**SQIs cujas alterações tendem a reduzir a CMA, tornando o critério potencialmente mais restritivo.**')
+        st.caption('Critério: maior redução percentual estimada de CMA em parâmetros com relação direta/inversa simplificada.')
+        st.dataframe(top_cma_impact(comp,'reduz',5),use_container_width=True,hide_index=True)
+
+    with tab_cma_up:
+        st.markdown('**SQIs cujas alterações tendem a aumentar a CMA, tornando o critério potencialmente menos restritivo.**')
+        st.caption('Critério: maior aumento percentual estimado de CMA em parâmetros com relação direta/inversa simplificada.')
+        st.dataframe(top_cma_impact(comp,'aumenta',5),use_container_width=True,hide_index=True)
+
+    st.divider()
     st.subheader('Tabela consolidada por composto')
-    classes=st.multiselect('Filtrar classes',['A','B','C','D1','D2'],default=['A','B','C','D1','D2']); filtered=master[master['Classe'].isin(classes)].copy()
+    classes=st.multiselect('Filtrar classes',['A','B','C','D1','D2'],default=['A','B','C','D1','D2'])
+    filtered=master[master['Classe'].isin(classes)].copy()
     st.dataframe(filtered,use_container_width=True,hide_index=True)
     st.download_button('Baixar tabela filtrada',data=filtered.to_csv(index=False).encode('utf-8-sig'),file_name='cetesbrisk_master_filtrado.csv',mime='text/csv')
 
@@ -155,10 +346,7 @@ elif page=='Pesquisa SQI e impacto CMA':
     st.subheader('Interpretação'); st.write(row['Recomendação'])
     detail=comp[(comp['CAS'].astype(str)==str(cas))].copy(); show_cols=['Fonte','Parâmetro','Valor 2023','Valor 2026','Status','Variação % Parâmetro','Tendência esperada da CMA','Estimativa variação CMA %','Observação técnica']
     st.subheader('Comparativo por parâmetro'); st.dataframe(detail[show_cols],use_container_width=True,hide_index=True)
-    ch=detail[detail.apply(changed,axis=1)]; lines=[]
-    for _,r in ch.iterrows(): lines.append(f"- {r.get('Parâmetro','')}: tendência CMA = {r.get('Tendência esperada da CMA','')}; estimativa = {r.get('Estimativa variação CMA %','')}; observação: {r.get('Observação técnica','')}")
-    cma_text='Não foram identificadas alterações materiais com tendência estimável de impacto sobre CMA para esta SQI.' if not lines else '\n'.join(lines)
-    synthesis=f"Com base na comparação entre as versões CETESBRisk v3.03 e v4.00, a SQI {selected} foi enquadrada na Classe {cls} ({CLASS_DESCRIPTIONS[cls]['descricao']}). {CLASS_DESCRIPTIONS[cls]['recomendacao']} Síntese do impacto potencial sobre CMA: {cma_text}"
+    synthesis=build_interpretive_synthesis(selected,cas,cls,detail)
     st.subheader('Síntese técnica estruturada'); st.text_area('Texto técnico para relatório',synthesis,height=220)
     html=report_html(selected,cas,cls,detail[show_cols],synthesis)
     st.download_button('Baixar relatório HTML desta SQI',data=html.encode('utf-8'),file_name=f"relatorio_cetesbrisk_{str(selected).replace(' ','_')}.html",mime='text/html')

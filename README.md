@@ -1,10 +1,13 @@
-# CETESBRisk Explorer v0.5
+# CETESBRisk Explorer v0.6
 
 Atualização:
-- Síntese técnica estruturada reescrita para formato interpretativo e menos mecânico;
-- Texto varia conforme Classe A, B, C, D1 ou D2;
-- Inclui motivo da classificação, tendência esperada da CMA e recomendação técnica;
-- Mantém base interna e não exige upload.
+- Dashboard com quatro rankings técnicos:
+  - Top 5 SQIs com mais alterações em FisQui;
+  - Top 5 SQIs com mais alterações em FatTox;
+  - Top 5 SQIs com maior tendência de redução da CMA;
+  - Top 5 SQIs com maior tendência de aumento da CMA.
+- Gráficos com rótulos/valores no hover.
+- Mantém síntese técnica interpretativa por SQI.
 
 ## Rodar
 ```bash
