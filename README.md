@@ -1,15 +1,15 @@
-# CETESBRisk Explorer v0.6
+# CETESBRisk Explorer v1.0
 
-Atualização:
-- Dashboard com quatro rankings técnicos:
-  - Top 5 SQIs com mais alterações em FisQui;
-  - Top 5 SQIs com mais alterações em FatTox;
-  - Top 5 SQIs com maior tendência de redução da CMA;
-  - Top 5 SQIs com maior tendência de aumento da CMA.
-- Gráficos com rótulos/valores no hover.
-- Mantém síntese técnica interpretativa por SQI.
+Versão pública consolidada.
 
-## Rodar
+Atualizações principais:
+- Aba Início com textos técnicos ampliados das Classes A, B, C, D1 e D2.
+- Ressalva metodológica sobre aplicabilidade das bases FisQui/FatTox nas quatro planilhas CETESBRisk v4.00.
+- Nova aba Glossário Técnico com pesquisa e download em CSV.
+- Link do LinkedIn do autor na barra lateral.
+- Dashboard com rankings técnicos e síntese interpretativa por SQI.
+
+## Rodar localmente
 ```bash
 streamlit run app.py --server.port 8510
 ```

@@ -218,10 +218,10 @@ def build_interpretive_synthesis(selected, cas, cls, detail):
 comp,incl,remov,alt,impacto=load_data(); master=build_master(comp)
 
 st.sidebar.title('🧪 CETESBRisk Explorer')
-st.sidebar.markdown('**Desenvolvido por André Souza**  \nEspecialista em GAC')
+st.sidebar.markdown('**Desenvolvido por André Souza**  \nEspecialista em GAC  \n[LinkedIn](https://www.linkedin.com/in/andr%C3%A9-souza-63539517)')
 st.sidebar.divider()
-page=st.sidebar.radio('Navegação',['Início','Dashboard geral','Pesquisa SQI e impacto CMA','Grupos prioritários','Highlights Manual CETESB','Downloads e notas'])
-st.sidebar.caption('v0.6 · rankings dashboard')
+page=st.sidebar.radio('Navegação',['Início','Dashboard geral','Pesquisa SQI e impacto CMA','Grupos prioritários','Highlights Manual CETESB','Glossário Técnico','Downloads e notas'])
+st.sidebar.caption('v1.0 · versão pública')
 
 if page=='Início':
     st.title('🧪 CETESBRisk Explorer')
@@ -251,13 +251,71 @@ As alterações identificadas foram agrupadas em cinco classes de criticidade, c
     classe_df=pd.DataFrame({'Classe':['A','B','C','D1','D2'],'Significado':['Sem alteração material relevante','Alteração menor','Alteração regulatória/potabilidade','Alteração toxicológica relevante','Alteração físico-química relevante'],'Implicação prática':['Não indica revisão automática da avaliação de risco.','Revisar apenas em cenários muito sensíveis.','Pode exigir revisão regulatória, mas não necessariamente recálculo do risco.','Pode justificar revisão dirigida ou recomendada da avaliação de risco.','Pode justificar revisão dirigida em cenários sensíveis à volatilização, transporte ou intrusão de vapores.']})
     st.dataframe(classe_df,use_container_width=True,hide_index=True)
     st.markdown('## 5. Explicação detalhada das classes')
-    with st.expander('Classe A — Sem alteração material relevante'): st.markdown('Compostos sem alterações significativas nos parâmetros capazes de repercutir materialmente sobre risco ou CMA. Exemplo: benzeno e grande parte dos BTEX clássicos.')
-    with st.expander('Classe B — Alterações menores'): st.markdown('Compostos com pequenas alterações paramétricas, normalmente sem repercussão prática relevante. Exemplos: PCE e TCE.')
-    with st.expander('Classe C — Alterações regulatórias/potabilidade'):
-        st.warning('A Classe C não significa automaticamente que o risco calculado mudou. Ela indica alterações em MCL, potabilidade ou critérios regulatórios, sem alteração material dos parâmetros principais de cálculo de risco/CMA.')
-        st.markdown('''**Interpretação prática:**\n- pode exigir revisão de enquadramento regulatório;\n- pode exigir atualização de tabelas comparativas;\n- pode ser relevante para potabilidade ou ingestão de água subterrânea;\n- **não implica automaticamente recálculo da avaliação de risco**.''')
-    with st.expander('Classe D1 — Alterações toxicológicas relevantes'): st.markdown('Alterações em parâmetros como RfDo, RfCi, SFo, IUR, carcinogenicidade e mutagenicidade. Exemplos: cloreto de vinila, 1,1-DCE, PFOS, PFOA e cromo VI.')
-    with st.expander('Classe D2 — Alterações físico-químicas relevantes'): st.markdown('Alterações em parâmetros capazes de influenciar volatilização, transporte, particionamento, exposição, intrusão de vapores e Csat. Exemplo: TPH alifático leve C5-C8.')
+
+    with st.expander('Classe A — Sem alteração material relevante'):
+        st.markdown("""
+        A Classe A reúne substâncias para as quais não foram identificadas alterações materiais nos parâmetros com potencial de modificar de forma relevante o risco calculado, a Concentração Máxima Aceitável (CMA) ou o comportamento ambiental da substância.
+
+        Embora possam existir pequenas diferenças de nomenclatura, arredondamentos, ajustes de precisão numérica ou alterações sem repercussão prática esperada, não foram observadas modificações significativas nos parâmetros toxicológicos ou físico-químicos capazes de justificar, por si só, a revisão de avaliações de risco previamente elaboradas.
+
+        **Interpretação prática:** a atualização da CETESBRisk não representa gatilho para reavaliação dessas substâncias. Eventual revisão deve decorrer de mudanças no modelo conceitual, nas vias de exposição, no uso da área ou em novos dados ambientais.
+
+        **Exemplos identificados nesta comparação:** benzeno, tolueno, etilbenzeno, xilenos e grande parte dos compostos clássicos de petróleo.
+        """)
+
+    with st.expander('Classe B — Alterações menores'):
+        st.markdown("""
+        A Classe B reúne substâncias que apresentaram alterações paramétricas de pequena magnitude, normalmente associadas a refinamentos de valores, ajustes metodológicos ou correções sem potencial relevante de alterar a interpretação do risco.
+
+        Embora não sejam alterações consideradas materiais, podem justificar uma verificação pontual em situações específicas, especialmente quando a substância controla o resultado da avaliação ou quando os riscos calculados anteriormente se encontram muito próximos dos critérios de aceitabilidade.
+
+        **Interpretação prática:** revisão geralmente não necessária, mas pode ser recomendável em estudos particularmente sensíveis.
+
+        **Exemplos identificados nesta comparação:** PCE/tetracloroeteno e TCE/tricloroeteno.
+        """)
+
+    with st.expander('Classe C — Alterações regulatórias e de potabilidade'):
+        st.warning('A Classe C é uma das mais sujeitas a interpretação equivocada: alteração regulatória não significa, necessariamente, alteração do risco calculado.')
+        st.markdown("""
+        A Classe C reúne substâncias que apresentaram alterações principalmente em critérios regulatórios, valores de potabilidade ou parâmetros utilizados para comparação legal, sem alteração material dos parâmetros que controlam diretamente o cálculo de risco.
+
+        Uma alteração de critério de potabilidade, como o Maximum Contaminant Level (MCL), pode modificar o enquadramento regulatório da substância, alterar tabelas comparativas ou afetar discussões relacionadas ao uso da água subterrânea. Isso, entretanto, não significa necessariamente que a CMA ou o risco calculado foram alterados.
+
+        **Interpretação prática:** o foco deve estar na revisão dos critérios de comparação e do enquadramento regulatório, e não no recálculo automático da avaliação de risco.
+
+        **Exemplos identificados nesta comparação:** cis-1,2-DCE e trans-1,2-DCE.
+        """)
+
+    with st.expander('Classe D1 — Alterações toxicológicas relevantes'):
+        st.markdown("""
+        A Classe D1 reúne substâncias que apresentaram alterações relevantes em parâmetros diretamente associados à toxicidade e ao cálculo de risco, incluindo dose de referência oral (RfDo), concentração de referência por inalação (RfCi), fator de slope oral (SFo), unidade de risco por inalação (IUR), classificação carcinogênica e mutagenicidade.
+
+        Essas alterações possuem potencial direto de repercutir nos resultados da avaliação de risco e, consequentemente, nas CMAs derivadas. Dependendo do parâmetro alterado, a atualização pode tornar os critérios mais restritivos ou menos restritivos, alterando a interpretação de estudos anteriormente desenvolvidos.
+
+        **Interpretação prática:** substâncias enquadradas nesta classe devem ser consideradas prioritárias em qualquer triagem para revisão de avaliações de risco, especialmente quando forem relevantes no modelo conceitual ou quando a avaliação anterior estiver próxima dos limites de aceitabilidade.
+
+        **Exemplos identificados nesta comparação:** cloreto de vinila, 1,1-DCE, PFOS, PFOA, HFPO-DA/GenX e cromo VI.
+        """)
+
+    with st.expander('Classe D2 — Alterações físico-químicas relevantes'):
+        st.markdown("""
+        A Classe D2 reúne substâncias que apresentaram alterações relevantes em parâmetros físico-químicos capazes de influenciar o comportamento ambiental da substância e sua modelagem de exposição.
+
+        Entre os parâmetros potencialmente envolvidos estão constante de Henry, pressão de vapor, solubilidade, coeficiente de partição carbono orgânico-água (Koc), coeficiente de distribuição solo-água (Kd), log Kow e concentração de saturação (Csat).
+
+        Diferentemente da Classe D1, essas alterações não representam necessariamente mudança de toxicidade. Seu impacto depende do modelo conceitual e da via de exposição considerada, sendo especialmente relevante para avaliações envolvendo volatilização, intrusão de vapores, transporte em fase vapor, particionamento solo-água-ar e modelagem de transporte.
+
+        **Interpretação prática:** a necessidade de revisão depende da importância desses processos no cenário avaliado.
+
+        **Exemplo identificado nesta comparação:** TPH alifático leve C5-C8.
+        """)
+
+    st.info(
+        "Importante: as classes representam uma ferramenta de triagem técnica para priorização de revisões. "
+        "A classificação não substitui a análise crítica do modelo conceitual da área, das vias de exposição, "
+        "das substâncias efetivamente presentes e dos resultados históricos disponíveis."
+    )
+
     st.markdown('''## 6. Fluxo decisório: quando revisar uma avaliação anterior?
 **Perguntas de triagem recomendadas:**
 1. O modelo conceitual possui SQIs da Classe D1, como PFAS, cloreto de vinila ou 1,1-DCE?
@@ -388,6 +446,59 @@ Essa restrição evita combinações fisicamente inconsistentes em áreas com le
     st.warning('Ponto de atenção: em áreas rasas, com franja capilar próxima à fundação, o modelo J&E pode não ser aplicável de forma direta. A planilha v4.00 torna essa restrição mais explícita e operacional.')
     st.markdown('''## MCL, potabilidade e cálculo de risco
 O manual também ajuda a diferenciar valores regulatórios, como MCL e potabilidade, dos parâmetros efetivamente usados no cálculo de risco. Essa distinção é essencial para interpretar corretamente a Classe C: mudança em potabilidade pode afetar enquadramento regulatório, mas não significa automaticamente alteração do risco calculado.''')
+
+
+elif page=='Glossário Técnico':
+    st.title('Glossário Técnico')
+    st.write('Termos e siglas utilizados no CETESBRisk Explorer e em avaliações de risco à saúde humana.')
+
+    glossary = [
+        ('Conceitos gerais', 'SQI', 'Substância Química de Interesse. Substância selecionada para avaliação em função de sua presença, concentração, toxicidade, mobilidade ou relevância no modelo conceitual.'),
+        ('Conceitos gerais', 'CMA', 'Concentração Máxima Aceitável. Concentração calculada como aceitável para determinado cenário de exposição e nível de risco adotado.'),
+        ('Conceitos gerais', 'Avaliação de Risco', 'Processo técnico utilizado para estimar riscos potenciais à saúde humana associados à exposição a substâncias químicas em diferentes meios ambientais.'),
+        ('Conceitos gerais', 'Modelo Conceitual', 'Representação integrada das fontes de contaminação, meios afetados, mecanismos de transporte, vias de exposição e receptores potenciais.'),
+        ('Parâmetros toxicológicos', 'FatTox', 'Base de fatores/parâmetros toxicológicos utilizada pela CETESBRisk, incluindo parâmetros de risco carcinogênico e não carcinogênico.'),
+        ('Parâmetros toxicológicos', 'RfDo', 'Dose de Referência Oral. Parâmetro usado na avaliação de risco não carcinogênico por ingestão.'),
+        ('Parâmetros toxicológicos', 'RfCi', 'Concentração de Referência por Inalação. Parâmetro usado na avaliação de risco não carcinogênico por inalação.'),
+        ('Parâmetros toxicológicos', 'SFo', 'Fator de Slope Oral. Parâmetro usado no cálculo de risco carcinogênico por exposição oral.'),
+        ('Parâmetros toxicológicos', 'IUR', 'Unidade de Risco por Inalação. Parâmetro usado no cálculo de risco carcinogênico por inalação.'),
+        ('Parâmetros físico-químicos', 'FisQui', 'Base de parâmetros físico-químicos utilizada pela CETESBRisk para descrever comportamento ambiental, volatilização, solubilidade, particionamento e transporte.'),
+        ('Parâmetros físico-químicos', 'Constante de Henry', 'Parâmetro que expressa a tendência de uma substância transferir-se da fase aquosa para a fase gasosa. É relevante para volatilização e intrusão de vapores.'),
+        ('Parâmetros físico-químicos', 'Koc', 'Coeficiente de partição carbono orgânico-água. Indica a tendência da substância se associar à matéria orgânica do solo.'),
+        ('Parâmetros físico-químicos', 'Kd', 'Coeficiente de distribuição solo-água. Usado para estimar a partição da substância entre fase sólida e fase aquosa.'),
+        ('Parâmetros físico-químicos', 'Kow / log Kow', 'Coeficiente de partição octanol-água. Relacionado à hidrofobicidade da substância e ao potencial de partição em fases orgânicas.'),
+        ('Parâmetros físico-químicos', 'Csat', 'Concentração de Saturação. Concentração acima da qual pode haver limitação física de solubilidade ou particionamento no meio avaliado.'),
+        ('Critérios regulatórios', 'MCL', 'Maximum Contaminant Level. Padrão de potabilidade adotado pela USEPA para água destinada ao consumo humano.'),
+        ('Critérios regulatórios', 'Potabilidade', 'Critérios ou padrões aplicáveis à qualidade da água destinada ao consumo humano.'),
+        ('Modelagem de exposição', 'Lgw', 'Profundidade do nível d’água utilizada em modelos de intrusão de vapores. Na CETESBRisk v4.00, há restrição para evitar combinações fisicamente inconsistentes com a franja capilar e fundações.'),
+        ('Modelagem de exposição', 'Intrusão de Vapores', 'Migração de vapores de substâncias voláteis presentes no solo ou água subterrânea para ambientes internos de edificações.'),
+        ('Modelagem de exposição', 'Johnson & Ettinger', 'Modelo utilizado para estimar intrusão de vapores a partir de fontes em solo ou água subterrânea. Possui premissas e limitações, especialmente em áreas com nível d’água raso.')
+    ]
+
+    df_gloss = pd.DataFrame(glossary, columns=['Categoria','Termo','Definição'])
+    termo = st.text_input('Pesquisar termo ou palavra-chave', '')
+    if termo:
+        mask = (
+            df_gloss['Termo'].str.contains(termo, case=False, na=False) |
+            df_gloss['Definição'].str.contains(termo, case=False, na=False) |
+            df_gloss['Categoria'].str.contains(termo, case=False, na=False)
+        )
+        df_view = df_gloss[mask].copy()
+    else:
+        df_view = df_gloss.copy()
+
+    for categoria in df_view['Categoria'].drop_duplicates():
+        st.subheader(categoria)
+        for _, r in df_view[df_view['Categoria'] == categoria].iterrows():
+            with st.expander(r['Termo']):
+                st.write(r['Definição'])
+
+    st.download_button(
+        'Baixar glossário em CSV',
+        data=df_gloss.to_csv(index=False).encode('utf-8-sig'),
+        file_name='glossario_tecnico_cetesbrisk_explorer.csv',
+        mime='text/csv'
+    )
 
 elif page=='Downloads e notas':
     st.title('Downloads e notas metodológicas'); st.write('Bases utilizadas pelo aplicativo.')
