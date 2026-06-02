@@ -17,3 +17,8 @@ streamlit run app.py --server.port 8510
 ## v1.1
 - Aba "Pesquisa SQI e impacto CMA" com busca única por nome da SQI, nome parcial ou CAS Number.
 - Resultado exibe nome, CAS Number e classe no rótulo de seleção.
+
+## v1.2
+- Corrigida a exibição da etiqueta de classe na aba de pesquisa.
+- Busca única por nome da SQI, nome parcial ou CAS Number.
+- Quando houver múltiplos resultados, o app mostra apenas um seletor de resultados encontrados.

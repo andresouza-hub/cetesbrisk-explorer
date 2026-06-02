@@ -215,13 +215,30 @@ def build_interpretive_synthesis(selected, cas, cls, detail):
     return text
 
 
+
+def class_badge(cls):
+    colors = {
+        "A": "#2e7d32",
+        "B": "#6c757d",
+        "C": "#f9a825",
+        "D1": "#c62828",
+        "D2": "#ef6c00"
+    }
+    desc = CLASS_DESCRIPTIONS.get(cls, {}).get("descricao", "")
+    color = colors.get(str(cls), "#607d8b")
+    return (
+        f"<span style='background:{color}; color:white; padding:0.35rem 0.6rem; "
+        f"border-radius:0.5rem; font-weight:700;'>Classe {cls} · {desc}</span>"
+    )
+
+
 comp,incl,remov,alt,impacto=load_data(); master=build_master(comp)
 
 st.sidebar.title('🧪 CETESBRisk Explorer')
 st.sidebar.markdown('**Desenvolvido por André Souza**  \nEspecialista em GAC  \n[LinkedIn](https://www.linkedin.com/in/andr%C3%A9-souza-63539517)')
 st.sidebar.divider()
 page=st.sidebar.radio('Navegação',['Início','Dashboard geral','Pesquisa SQI e impacto CMA','Grupos prioritários','Highlights Manual CETESB','Glossário Técnico','Downloads e notas'])
-st.sidebar.caption('v1.0 · versão pública')
+st.sidebar.caption('v1.2 · busca corrigida')
 
 if page=='Início':
     st.title('🧪 CETESBRisk Explorer')
@@ -397,12 +414,12 @@ elif page=='Dashboard geral':
 
 elif page=='Pesquisa SQI e impacto CMA':
     st.title('Pesquisa SQI e impacto potencial na CMA')
-    st.write('Pesquise por nome da Substância Química de Interesse (SQI), nome parcial ou CAS Number.')
+    st.write('Use uma única busca para localizar a Substância Química de Interesse (SQI) por nome, nome parcial ou CAS Number.')
 
     busca = st.text_input(
-        'Pesquisar SQI ou CAS',
+        'Pesquisar por nome da SQI ou CAS Number',
         value='',
-        placeholder='Ex.: Benzene, Benzeno, Vinyl chloride, 75-01-4, PFOS'
+        placeholder='Ex.: Benzene, Vinyl chloride, 75-01-4, PFOS'
     ).strip()
 
     search_master = master.copy()
@@ -427,18 +444,24 @@ elif page=='Pesquisa SQI e impacto CMA':
     else:
         st.caption('Digite parte do nome da SQI ou CAS Number para filtrar a lista.')
 
-    resultados['rotulo_busca'] = resultados.apply(
+    resultados['rotulo_resultado'] = resultados.apply(
         lambda r: f"{r['Composto']} | CAS: {r['CAS']} | Classe {r['Classe']}",
         axis=1
     )
 
-    selected_label = st.selectbox(
-        'Selecione a SQI',
-        resultados['rotulo_busca'].tolist(),
-        index=0
-    )
+    # Se houver apenas um resultado, seleciona automaticamente.
+    # Se houver mais de um, exibe um seletor de resultado, não uma segunda barra de pesquisa.
+    if len(resultados) == 1:
+        row = resultados.iloc[0]
+        st.success(f"Resultado selecionado: {row['rotulo_resultado']}")
+    else:
+        selected_label = st.selectbox(
+            'Resultados encontrados',
+            resultados['rotulo_resultado'].tolist(),
+            index=0
+        )
+        row = resultados[resultados['rotulo_resultado'] == selected_label].iloc[0]
 
-    row = resultados[resultados['rotulo_busca'] == selected_label].iloc[0]
     selected = row['Composto']
     cas = row['CAS']
     cls = row['Classe']
@@ -468,7 +491,10 @@ elif page=='Pesquisa SQI e impacto CMA':
     ]
 
     st.subheader('Comparativo por parâmetro')
-    st.dataframe(detail[show_cols], use_container_width=True, hide_index=True)
+    if detail.empty:
+        st.warning('Não foram encontrados detalhes comparativos para o CAS selecionado.')
+    else:
+        st.dataframe(detail[show_cols], use_container_width=True, hide_index=True)
 
     if 'build_interpretive_synthesis' in globals():
         synthesis = build_interpretive_synthesis(selected, cas, cls, detail)
@@ -482,7 +508,7 @@ elif page=='Pesquisa SQI e impacto CMA':
     st.subheader('Síntese técnica estruturada')
     st.text_area('Texto técnico para relatório', synthesis, height=220)
 
-    if 'build_report_html' in globals():
+    if 'build_report_html' in globals() and not detail.empty:
         report_detail = detail[show_cols].copy()
         html = build_report_html(selected, cas, cls, report_detail, synthesis)
         st.download_button(
