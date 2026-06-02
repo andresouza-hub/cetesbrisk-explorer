@@ -397,22 +397,18 @@ elif page=='Dashboard geral':
 
 elif page=='Pesquisa SQI e impacto CMA':
     st.title('Pesquisa SQI e impacto potencial na CMA')
-    busca=st.text_input('Pesquisar por nome da SQI ou CAS Number',value='',placeholder='Ex.: Benzene, Vinyl chloride, 75-01-4, PFOS').strip()
-    base_options=master.sort_values('Composto').copy()
-    if busca:
-        mask=(
-            base_options['Composto'].astype(str).str.contains(busca,case=False,na=False) |
-            base_options['CAS'].astype(str).str.contains(busca,case=False,na=False)
-        )
-        base_options=base_options[mask].copy()
-        if base_options.empty:
-            st.warning('Nenhuma SQI encontrada para o termo informado. Tente buscar por parte do nome em inglês ou pelo CAS Number.')
-            st.stop()
-        st.caption(f"{len(base_options)} resultado(s) encontrado(s) para: {busca}")
-    options=base_options['Composto'].dropna().unique().tolist()
-    default_index=options.index('Benzene') if 'Benzene' in options else 0
-    selected=st.selectbox('Selecione uma substância',options,index=default_index)
-    row=master[master['Composto']==selected].iloc[0]; cas=row['CAS']; cls=row['Classe']
+    search_df = master.sort_values(['Composto','CAS']).dropna(subset=['Composto']).copy()
+    search_df['rotulo_busca'] = search_df.apply(lambda r: f"{r['Composto']} | CAS: {r['CAS']}", axis=1)
+    options = search_df['rotulo_busca'].tolist()
+    default_idx = 0
+    benz = search_df[search_df['Composto'].astype(str).str.lower().eq('benzene')]
+    if not benz.empty:
+        default_label = benz.iloc[0]['rotulo_busca']
+        if default_label in options:
+            default_idx = options.index(default_label)
+    selected_label = st.selectbox('Selecione uma substância', options, index=default_idx)
+    row = search_df[search_df['rotulo_busca'] == selected_label].iloc[0]
+    selected = row['Composto']; cas = row['CAS']; cls = row['Classe']
     st.header(selected); st.markdown(badge(cls),unsafe_allow_html=True)
     m1,m2,m3=st.columns(3); m1.metric('CAS',str(cas)); m2.metric('Classe',cls); m3.metric('Nº alterações',int(row['Nº alterações']))
     st.subheader('Interpretação'); st.write(row['Recomendação'])
