@@ -397,17 +397,100 @@ elif page=='Dashboard geral':
 
 elif page=='Pesquisa SQI e impacto CMA':
     st.title('Pesquisa SQI e impacto potencial na CMA')
-    options=master.sort_values('Composto')['Composto'].dropna().unique().tolist(); selected=st.selectbox('Selecione uma substância',options,index=options.index('Benzene') if 'Benzene' in options else 0)
-    row=master[master['Composto']==selected].iloc[0]; cas=row['CAS']; cls=row['Classe']
-    st.header(selected); st.markdown(badge(cls),unsafe_allow_html=True)
-    m1,m2,m3=st.columns(3); m1.metric('CAS',str(cas)); m2.metric('Classe',cls); m3.metric('Nº alterações',int(row['Nº alterações']))
-    st.subheader('Interpretação'); st.write(row['Recomendação'])
-    detail=comp[(comp['CAS'].astype(str)==str(cas))].copy(); show_cols=['Fonte','Parâmetro','Valor 2023','Valor 2026','Status','Variação % Parâmetro','Tendência esperada da CMA','Estimativa variação CMA %','Observação técnica']
-    st.subheader('Comparativo por parâmetro'); st.dataframe(detail[show_cols],use_container_width=True,hide_index=True)
-    synthesis=build_interpretive_synthesis(selected,cas,cls,detail)
-    st.subheader('Síntese técnica estruturada'); st.text_area('Texto técnico para relatório',synthesis,height=220)
-    html=report_html(selected,cas,cls,detail[show_cols],synthesis)
-    st.download_button('Baixar relatório HTML desta SQI',data=html.encode('utf-8'),file_name=f"relatorio_cetesbrisk_{str(selected).replace(' ','_')}.html",mime='text/html')
+    st.write('Pesquise por nome da Substância Química de Interesse (SQI), nome parcial ou CAS Number.')
+
+    busca = st.text_input(
+        'Pesquisar SQI ou CAS',
+        value='',
+        placeholder='Ex.: Benzene, Benzeno, Vinyl chloride, 75-01-4, PFOS'
+    ).strip()
+
+    search_master = master.copy()
+    search_master['CAS_busca'] = search_master['CAS'].astype(str)
+    search_master['Composto_busca'] = search_master['Composto'].astype(str)
+
+    if busca:
+        mask = (
+            search_master['Composto_busca'].str.contains(busca, case=False, na=False) |
+            search_master['CAS_busca'].str.contains(busca, case=False, na=False)
+        )
+        resultados = search_master[mask].sort_values(['Composto', 'CAS']).copy()
+    else:
+        resultados = search_master.sort_values(['Composto', 'CAS']).copy()
+
+    if resultados.empty:
+        st.warning('Nenhuma SQI encontrada para o termo informado. Tente buscar por parte do nome em inglês ou pelo CAS Number.')
+        st.stop()
+
+    if busca:
+        st.caption(f'{len(resultados)} resultado(s) encontrado(s) para: {busca}')
+    else:
+        st.caption('Digite parte do nome da SQI ou CAS Number para filtrar a lista.')
+
+    resultados['rotulo_busca'] = resultados.apply(
+        lambda r: f"{r['Composto']} | CAS: {r['CAS']} | Classe {r['Classe']}",
+        axis=1
+    )
+
+    selected_label = st.selectbox(
+        'Selecione a SQI',
+        resultados['rotulo_busca'].tolist(),
+        index=0
+    )
+
+    row = resultados[resultados['rotulo_busca'] == selected_label].iloc[0]
+    selected = row['Composto']
+    cas = row['CAS']
+    cls = row['Classe']
+
+    st.header(str(selected))
+    st.markdown(class_badge(cls), unsafe_allow_html=True)
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric('CAS Number', str(cas))
+    m2.metric('Classe', cls)
+    m3.metric('Nº alterações', int(row['Nº alterações']))
+
+    st.subheader('Interpretação')
+    st.write(row['Recomendação'])
+
+    detail = comp[(comp['CAS'].astype(str) == str(cas))].copy()
+    show_cols = [
+        'Fonte',
+        'Parâmetro',
+        'Valor 2023',
+        'Valor 2026',
+        'Status',
+        'Variação % Parâmetro',
+        'Tendência esperada da CMA',
+        'Estimativa variação CMA %',
+        'Observação técnica'
+    ]
+
+    st.subheader('Comparativo por parâmetro')
+    st.dataframe(detail[show_cols], use_container_width=True, hide_index=True)
+
+    if 'build_interpretive_synthesis' in globals():
+        synthesis = build_interpretive_synthesis(selected, cas, cls, detail)
+    else:
+        synthesis = (
+            f"Com base na comparação entre as versões CETESBRisk v3.03 e v4.00, a SQI {selected} "
+            f"foi enquadrada na Classe {cls} ({CLASS_DESCRIPTIONS[cls]['descricao']}). "
+            f"{CLASS_DESCRIPTIONS[cls]['recomendacao']}"
+        )
+
+    st.subheader('Síntese técnica estruturada')
+    st.text_area('Texto técnico para relatório', synthesis, height=220)
+
+    if 'build_report_html' in globals():
+        report_detail = detail[show_cols].copy()
+        html = build_report_html(selected, cas, cls, report_detail, synthesis)
+        st.download_button(
+            'Baixar relatório HTML desta SQI',
+            data=html.encode('utf-8'),
+            file_name=f"relatorio_cetesbrisk_{str(selected).replace(' ','_').replace('/','_')}.html",
+            mime='text/html'
+        )
 
 elif page=='Grupos prioritários':
     st.title('Grupos prioritários'); st.write('Síntese interpretativa para grupos frequentemente relevantes em avaliações de risco e GAC.')

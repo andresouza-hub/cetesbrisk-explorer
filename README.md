@@ -13,3 +13,7 @@ Atualizações principais:
 ```bash
 streamlit run app.py --server.port 8510
 ```
+
+## v1.1
+- Aba "Pesquisa SQI e impacto CMA" com busca única por nome da SQI, nome parcial ou CAS Number.
+- Resultado exibe nome, CAS Number e classe no rótulo de seleção.
