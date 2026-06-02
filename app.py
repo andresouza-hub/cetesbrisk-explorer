@@ -221,11 +221,19 @@ st.sidebar.title('🧪 CETESBRisk Explorer')
 st.sidebar.markdown('**Desenvolvido por André Souza**  \nEspecialista em GAC  \n[LinkedIn](https://www.linkedin.com/in/andr%C3%A9-souza-63539517)')
 st.sidebar.divider()
 page=st.sidebar.radio('Navegação',['Início','Dashboard geral','Pesquisa SQI e impacto CMA','Grupos prioritários','Highlights Manual CETESB','Glossário Técnico','Downloads e notas'])
-st.sidebar.caption('v1.0 · versão pública')
+st.sidebar.caption('v1.1 · nota CETESB v4.01')
 
 if page=='Início':
     st.title('🧪 CETESBRisk Explorer')
     st.subheader('Comparador técnico CETESBRisk v3.03 (2023) × v4.00 (2026)')
+
+    st.info(
+        "Nota sobre a versão CETESBRisk v4.01: em 01/06/2026, a CETESB publicou a v4.01 com ajuste de fórmulas na aba EXP "
+        "para as planilhas Trabalhador Comercial/Industrial e Trabalhador de Obra Civil. A classificação apresentada neste aplicativo "
+        "permanece baseada na comparação v3.03 × v4.00 das bases FisQui e FatTox, que constituíram a atualização material relevante "
+        "para os parâmetros das substâncias. Para uso quantitativo oficial em avaliações de risco e cálculo de CMA, recomenda-se sempre "
+        "utilizar a versão mais recente da planilha CETESB."
+    )
     st.markdown('''## 1. O que é esta ferramenta?
 O **CETESBRisk Explorer** é uma ferramenta de apoio à interpretação técnica das alterações introduzidas entre as versões **CETESBRisk v3.03 (2023)** e **CETESBRisk v4.00 (2026)**.
 

@@ -1,15 +1,5 @@
-# CETESBRisk Explorer v1.0
+# CETESBRisk Explorer - atualização nota v4.01
 
-Versão pública consolidada.
-
-Atualizações principais:
-- Aba Início com textos técnicos ampliados das Classes A, B, C, D1 e D2.
-- Ressalva metodológica sobre aplicabilidade das bases FisQui/FatTox nas quatro planilhas CETESBRisk v4.00.
-- Nova aba Glossário Técnico com pesquisa e download em CSV.
-- Link do LinkedIn do autor na barra lateral.
-- Dashboard com rankings técnicos e síntese interpretativa por SQI.
-
-## Rodar localmente
-```bash
-streamlit run app.py --server.port 8510
-```
+Alteração realizada:
+- Inclusão de nota metodológica sobre a CETESBRisk v4.01, publicada em 01/06/2026, com ajuste de fórmulas na aba EXP para Trabalhador Comercial/Industrial e Trabalhador de Obra Civil.
+- Mantida a lógica da comparação v3.03 × v4.00 das bases FisQui e FatTox.
