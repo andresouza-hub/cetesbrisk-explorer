@@ -1,5 +1,15 @@
-# CETESBRisk Explorer - atualização nota v4.01
+# CETESBRisk Explorer
 
-Alteração realizada:
-- Inclusão de nota metodológica sobre a CETESBRisk v4.01, publicada em 01/06/2026, com ajuste de fórmulas na aba EXP para Trabalhador Comercial/Industrial e Trabalhador de Obra Civil.
-- Mantida a lógica da comparação v3.03 × v4.00 das bases FisQui e FatTox.
+Alteração mínima aplicada sobre a versão funcional: o seletor da aba Pesquisa SQI e impacto CMA exibe nome da substância e CAS Number em um único campo.
+
+## Correção de contagens por classe
+- Mantida a regra atual de classificação.
+- Corrigida a inconsistência entre a aba Início e o Dashboard Geral.
+- As contagens passam a ser calculadas dinamicamente a partir da tabela consolidada `master`.
+
+Contagens atuais:
+- Classe A: 296
+- Classe B: 471
+- Classe C: 18
+- Classe D1: 23
+- Classe D2: 11

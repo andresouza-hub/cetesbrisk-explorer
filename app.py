@@ -7,7 +7,7 @@ import plotly.express as px
 st.set_page_config(page_title='CETESBRisk Explorer', page_icon='🧪', layout='wide')
 DATA_PATH = Path(__file__).parent / 'data' / 'Analise_detalhada_CETESBRisk_2023_vs_2026_CMA.xlsx'
 
-FIXED_CLASS_COUNTS = {'A':670,'B':3,'C':25,'D1':31,'D2':90}
+FIXED_CLASS_COUNTS = {'A':296,'B':471,'C':18,'D1':23,'D2':11}
 GLOBAL_COUNTS = {'SQIs comuns comparadas':819,'Comparações individuais':29484,'Novas SQIs incluídas':59,'SQIs removidas':1,'Comparações com alteração':1009,'Comparações sem alteração':16565,'Sem valor/vazios':11910}
 CLASS_DESCRIPTIONS = {
  'A':{'descricao':'Sem alteração material relevante','recomendacao':'Não indica revisão automática da AR exclusivamente pela atualização da planilha.'},
@@ -216,24 +216,17 @@ def build_interpretive_synthesis(selected, cas, cls, detail):
 
 
 comp,incl,remov,alt,impacto=load_data(); master=build_master(comp)
+CLASS_COUNTS = master['Classe'].value_counts().reindex(['A','B','C','D1','D2']).fillna(0).astype(int).to_dict()
 
 st.sidebar.title('🧪 CETESBRisk Explorer')
 st.sidebar.markdown('**Desenvolvido por André Souza**  \nEspecialista em GAC  \n[LinkedIn](https://www.linkedin.com/in/andr%C3%A9-souza-63539517)')
 st.sidebar.divider()
 page=st.sidebar.radio('Navegação',['Início','Dashboard geral','Pesquisa SQI e impacto CMA','Grupos prioritários','Highlights Manual CETESB','Glossário Técnico','Downloads e notas'])
-st.sidebar.caption('v1.1 · nota CETESB v4.01')
+st.sidebar.caption('v1.1 · contagens corrigidas')
 
 if page=='Início':
     st.title('🧪 CETESBRisk Explorer')
     st.subheader('Comparador técnico CETESBRisk v3.03 (2023) × v4.00 (2026)')
-
-    st.info(
-        "Nota sobre a versão CETESBRisk v4.01: em 01/06/2026, a CETESB publicou a v4.01 com ajuste de fórmulas na aba EXP "
-        "para as planilhas Trabalhador Comercial/Industrial e Trabalhador de Obra Civil. A classificação apresentada neste aplicativo "
-        "permanece baseada na comparação v3.03 × v4.00 das bases FisQui e FatTox, que constituíram a atualização material relevante "
-        "para os parâmetros das substâncias. Para uso quantitativo oficial em avaliações de risco e cálculo de CMA, recomenda-se sempre "
-        "utilizar a versão mais recente da planilha CETESB."
-    )
     st.markdown('''## 1. O que é esta ferramenta?
 O **CETESBRisk Explorer** é uma ferramenta de apoio à interpretação técnica das alterações introduzidas entre as versões **CETESBRisk v3.03 (2023)** e **CETESBRisk v4.00 (2026)**.
 
@@ -333,7 +326,7 @@ As alterações identificadas foram agrupadas em cinco classes de criticidade, c
 
 Se a resposta for **sim** para uma ou mais perguntas, recomenda-se **revisão dirigida**. Se todas forem **não**, a atualização da planilha, isoladamente, não indica revisão automática.''')
     st.markdown('## 7. Resultado da classificação')
-    r1,r2,r3,r4,r5=st.columns(5); r1.metric('Classe A','670'); r2.metric('Classe B','3'); r3.metric('Classe C','25'); r4.metric('Classe D1','31'); r5.metric('Classe D2','90')
+    r1,r2,r3,r4,r5=st.columns(5); r1.metric('Classe A',str(CLASS_COUNTS.get('A',0))); r2.metric('Classe B',str(CLASS_COUNTS.get('B',0))); r3.metric('Classe C',str(CLASS_COUNTS.get('C',0))); r4.metric('Classe D1',str(CLASS_COUNTS.get('D1',0))); r5.metric('Classe D2',str(CLASS_COUNTS.get('D2',0)))
     st.markdown('''## 8. PFAS e compostos correlatos
 A v4.00 ampliou significativamente a capacidade de avaliação de PFAS e compostos correlatos. O ganho não é apenas numérico: vários compostos passaram a ter maior preenchimento de parâmetros físico-químicos e toxicológicos, reduzindo lacunas que limitavam análises anteriores.
 
@@ -358,7 +351,7 @@ elif page=='Dashboard geral':
     c4.metric('Sem valor/vazios','11.910')
 
     st.subheader('Distribuição consolidada dos compostos por classe de alteração')
-    chart_df=pd.DataFrame({'Classe':list(FIXED_CLASS_COUNTS.keys()),'N compostos':list(FIXED_CLASS_COUNTS.values())})
+    chart_df=pd.DataFrame({'Classe':list(CLASS_COUNTS.keys()),'N compostos':list(CLASS_COUNTS.values())})
     fig=px.bar(chart_df,x='Classe',y='N compostos',color='Classe',text='N compostos',hover_data={'Classe':True,'N compostos':True},title='Compostos por classe de alteração')
     fig.update_traces(textposition='outside', hovertemplate='<b>Classe %{x}</b><br>Nº de compostos: %{y}<extra></extra>')
     fig.update_layout(yaxis_title='Nº de compostos',xaxis_title='Classe')
