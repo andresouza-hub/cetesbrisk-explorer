@@ -13,3 +13,13 @@ Contagens atuais:
 - Classe C: 18
 - Classe D1: 23
 - Classe D2: 11
+
+## Atualização: densidade e rankings de parâmetros
+
+Incluído no Dashboard Geral:
+- Texto explicativo sobre a presença da densidade em diferentes classes.
+- Tabela com número de SQIs com alteração de densidade por classe e faixa de variação.
+- Ranking dos 5 parâmetros mais alterados em FisQui.
+- Ranking dos 5 parâmetros mais alterados em FatTox.
+
+A regra de classificação A/B/C/D1/D2 foi mantida.

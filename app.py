@@ -215,6 +215,24 @@ def build_interpretive_synthesis(selected, cas, cls, detail):
     return text
 
 
+
+def top_changed_parameters_by_source(comp, fonte, n=5):
+    df = comp.copy()
+    df = df[df['Fonte'].astype(str).str.lower() == fonte.lower()]
+    if 'Status' in df.columns:
+        df = df[df['Status'].astype(str).str.lower().ne('sem alteração')]
+    if df.empty:
+        return pd.DataFrame(columns=['Parâmetro', 'Nº de SQIs afetadas'])
+    out = (
+        df.groupby('Parâmetro', dropna=False)
+        .agg(**{'Nº de SQIs afetadas': ('CAS', 'nunique')})
+        .reset_index()
+        .sort_values('Nº de SQIs afetadas', ascending=False)
+        .head(n)
+    )
+    return out
+
+
 comp,incl,remov,alt,impacto=load_data(); master=build_master(comp)
 CLASS_COUNTS = master['Classe'].value_counts().reindex(['A','B','C','D1','D2']).fillna(0).astype(int).to_dict()
 
@@ -222,7 +240,7 @@ st.sidebar.title('🧪 CETESBRisk Explorer')
 st.sidebar.markdown('**Desenvolvido por André Souza**  \nEspecialista em GAC  \n[LinkedIn](https://www.linkedin.com/in/andr%C3%A9-souza-63539517)')
 st.sidebar.divider()
 page=st.sidebar.radio('Navegação',['Início','Dashboard geral','Pesquisa SQI e impacto CMA','Grupos prioritários','Highlights Manual CETESB','Glossário Técnico','Downloads e notas'])
-st.sidebar.caption('v1.1 · contagens corrigidas')
+st.sidebar.caption('v1.2 · densidade e rankings')
 
 if page=='Início':
     st.title('🧪 CETESBRisk Explorer')
@@ -389,12 +407,50 @@ elif page=='Dashboard geral':
         st.caption('Critério: maior aumento percentual estimado de CMA em parâmetros com relação direta/inversa simplificada.')
         st.dataframe(top_cma_impact(comp,'aumenta',5),use_container_width=True,hide_index=True)
 
+
+    st.divider()
+    st.subheader('Parâmetros mais frequentemente alterados')
+    st.markdown(
+        'Os rankings abaixo mostram quais parâmetros foram alterados em maior número de SQIs. '
+        'Eles ajudam a diferenciar alterações amplas e repetitivas, como densidade, de alterações mais específicas em parâmetros toxicológicos.'
+    )
+
+    pcol1, pcol2 = st.columns(2)
+    with pcol1:
+        st.markdown('**Top 5 parâmetros FisQui mais alterados**')
+        st.dataframe(top_changed_parameters_by_source(comp, 'FisQui', 5), use_container_width=True, hide_index=True)
+    with pcol2:
+        st.markdown('**Top 5 parâmetros FatTox mais alterados**')
+        st.dataframe(top_changed_parameters_by_source(comp, 'FatTox', 5), use_container_width=True, hide_index=True)
+
+
     st.divider()
     st.subheader('Tabela consolidada por composto')
     classes=st.multiselect('Filtrar classes',['A','B','C','D1','D2'],default=['A','B','C','D1','D2'])
     filtered=master[master['Classe'].isin(classes)].copy()
     st.dataframe(filtered,use_container_width=True,hide_index=True)
     st.download_button('Baixar tabela filtrada',data=filtered.to_csv(index=False).encode('utf-8-sig'),file_name='cetesbrisk_master_filtrado.csv',mime='text/csv')
+
+    st.markdown("### Entendendo a presença da densidade em diferentes classes")
+    st.markdown(
+        "A densidade aparece em diversas classes porque a classificação final da SQI não é definida pela magnitude da alteração da densidade, "
+        "mas sim pelo parâmetro mais relevante dentre todos os parâmetros alterados para aquela substância. "
+        "Assim, uma mesma SQI pode apresentar alteração de densidade e permanecer na Classe A, caso a alteração não seja considerada materialmente relevante. "
+        "Da mesma forma, pode ser classificada como C, D1 ou D2 quando existirem alterações regulatórias, toxicológicas ou físico-químicas mais relevantes associadas."
+    )
+
+    densidade_df = pd.DataFrame({
+        "Classe": ["A", "B", "C", "D1", "D2"],
+        "SQIs com alteração de densidade": [264, 467, 18, 22, 11],
+        "Faixa de variação da densidade (%)": ["-4,04 a +2,20", "-4,86 a +4,70", "-3,35 a +2,73", "-3,31 a +2,78", "-7,64 a +20,00"]
+    })
+    st.dataframe(densidade_df, use_container_width=True, hide_index=True)
+
+    st.markdown(
+        "A classificação segue uma lógica hierárquica de relevância técnica: **D1 > D2 > C > B > A**. "
+        "Portanto, a presença da densidade na lista de parâmetros alterados não significa, por si só, que a SQI exija revisão da avaliação de risco."
+    )
+
 
 elif page=='Pesquisa SQI e impacto CMA':
     st.title('Pesquisa SQI e impacto potencial na CMA')
