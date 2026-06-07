@@ -23,3 +23,12 @@ Incluído no Dashboard Geral:
 - Ranking dos 5 parâmetros mais alterados em FatTox.
 
 A regra de classificação A/B/C/D1/D2 foi mantida.
+
+## Atualização: grupos prioritários e SQIs incluídas/removidas
+
+Incluído/ajustado:
+- Aba BTEX corrigida para apresentar apenas benzeno, tolueno, etilbenzeno e xilenos.
+- Tabelas dos grupos prioritários padronizadas em três colunas: Composto, Classe e Interpretação.
+- Aba PFAS padronizada.
+- Aba Metais passa a exibir lista de compostos metálicos identificados na tabela consolidada.
+- Dashboard passa a exibir listas de SQIs incluídas e removidas na v4.00.

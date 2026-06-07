@@ -233,6 +233,35 @@ def top_changed_parameters_by_source(comp, fonte, n=5):
     return out
 
 
+
+def group_rows_by_cas(master, cas_list, interpretation_map=None):
+    df = master[master['CAS'].astype(str).isin([str(c) for c in cas_list])].copy()
+    if df.empty:
+        return pd.DataFrame(columns=['Composto','Classe','Interpretação'])
+    order = {str(c): i for i, c in enumerate(cas_list)}
+    df['_ordem'] = df['CAS'].astype(str).map(order)
+    df = df.sort_values('_ordem')
+    out = df[['Composto','Classe','Recomendação']].rename(columns={'Recomendação':'Interpretação'}).copy()
+    if interpretation_map:
+        for idx, row in out.iterrows():
+            comp = str(row['Composto'])
+            for key, value in interpretation_map.items():
+                if key.lower() in comp.lower():
+                    out.at[idx, 'Interpretação'] = value
+                    break
+    return out
+
+def group_rows_by_regex(master, pattern, interpretation_prefix=None):
+    df = master[master['Composto'].astype(str).str.contains(pattern, case=False, na=False, regex=True)].copy()
+    if df.empty:
+        return pd.DataFrame(columns=['Composto','Classe','Interpretação'])
+    df = df.sort_values(['Classe','Composto'])
+    out = df[['Composto','Classe','Recomendação']].rename(columns={'Recomendação':'Interpretação'}).copy()
+    if interpretation_prefix:
+        out['Interpretação'] = out.apply(lambda r: f"{interpretation_prefix} {r['Interpretação']}", axis=1)
+    return out
+
+
 comp,incl,remov,alt,impacto=load_data(); master=build_master(comp)
 CLASS_COUNTS = master['Classe'].value_counts().reindex(['A','B','C','D1','D2']).fillna(0).astype(int).to_dict()
 
@@ -240,7 +269,7 @@ st.sidebar.title('🧪 CETESBRisk Explorer')
 st.sidebar.markdown('**Desenvolvido por André Souza**  \nEspecialista em GAC  \n[LinkedIn](https://www.linkedin.com/in/andr%C3%A9-souza-63539517)')
 st.sidebar.divider()
 page=st.sidebar.radio('Navegação',['Início','Dashboard geral','Pesquisa SQI e impacto CMA','Grupos prioritários','Highlights Manual CETESB','Glossário Técnico','Downloads e notas'])
-st.sidebar.caption('v1.2 · densidade e rankings')
+st.sidebar.caption('v1.3 · grupos e SQIs')
 
 if page=='Início':
     st.title('🧪 CETESBRisk Explorer')
@@ -381,6 +410,31 @@ elif page=='Dashboard geral':
     fig2.update_traces(textposition='outside', hovertemplate='<b>%{x}</b><br>Nº de pontos: %{y}<extra></extra>')
     st.plotly_chart(fig2,use_container_width=True)
 
+
+    st.divider()
+    st.subheader('SQIs incluídas e removidas na v4.00')
+    st.markdown(
+        'A v4.00 incluiu 59 novas Substâncias Químicas de Interesse (SQIs) e removeu 1 registro em relação à v3.03. '
+        'Essas listas ajudam a diferenciar atualização de base de dados de alteração paramétrica em compostos já existentes.'
+    )
+    tab_inc, tab_rem = st.tabs(['SQIs incluídas', 'SQIs removidas'])
+    with tab_inc:
+        st.dataframe(incl, use_container_width=True, hide_index=True)
+        st.download_button(
+            'Baixar SQIs incluídas',
+            data=incl.to_csv(index=False).encode('utf-8-sig'),
+            file_name='sqis_incluidas_v4.csv',
+            mime='text/csv'
+        )
+    with tab_rem:
+        st.dataframe(remov, use_container_width=True, hide_index=True)
+        st.download_button(
+            'Baixar SQIs removidas',
+            data=remov.to_csv(index=False).encode('utf-8-sig'),
+            file_name='sqis_removidas_v4.csv',
+            mime='text/csv'
+        )
+
     st.divider()
     st.subheader('Rankings de atenção técnica')
     st.markdown('Os rankings abaixo ajudam a identificar SQIs com maior número de alterações em parâmetros físico-químicos, toxicológicos e maior impacto potencial estimado sobre CMA. A interpretação deve considerar o modelo conceitual, as vias de exposição e a relevância da SQI no estudo.')
@@ -477,22 +531,85 @@ elif page=='Pesquisa SQI e impacto CMA':
     st.download_button('Baixar relatório HTML desta SQI',data=html.encode('utf-8'),file_name=f"relatorio_cetesbrisk_{str(selected).replace(' ','_')}.html",mime='text/html')
 
 elif page=='Grupos prioritários':
-    st.title('Grupos prioritários'); st.write('Síntese interpretativa para grupos frequentemente relevantes em avaliações de risco e GAC.')
-    tab1,tab2,tab3,tab4,tab5=st.tabs(['BTEX','Etenos clorados','TPH','PFAS','Metais'])
+    st.title('Grupos prioritários')
+    st.write('Síntese interpretativa para grupos frequentemente relevantes em avaliações de risco e GAC.')
+
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(['BTEX', 'Etenos clorados', 'TPH', 'PFAS', 'Metais'])
+
     with tab1:
-        st.subheader('BTEX'); st.markdown('Os BTEX são compostos frequentes em áreas com hidrocarbonetos de petróleo. Na comparação realizada, benzeno e principais BTEX permaneceram sem alteração material relevante, não indicando revisão automática da avaliação de risco apenas pela atualização da planilha.')
-        btex=master[master['Composto'].str.lower().str.contains('benzene|toluene|ethylbenzene|xylene',na=False)]; st.dataframe(btex[['CAS','Composto','Classe','Recomendação']],use_container_width=True,hide_index=True)
+        st.subheader('BTEX')
+        st.markdown(
+            'Nesta aba são apresentados apenas os compostos clássicos do grupo BTEX: benzeno, tolueno, etilbenzeno e xilenos. '
+            'Outros hidrocarbonetos aromáticos substituídos, nitroaromáticos ou compostos clorados não foram incluídos neste grupo para evitar interpretação equivocada.'
+        )
+        btex_cas = ['71-43-2', '108-88-3', '100-41-4', '95-47-6', '108-38-3', '106-42-3']
+        btex_interp = {
+            'Benzene': 'Sem alteração material relevante; não indica revisão automática apenas pela atualização da planilha.',
+            'Toluene': 'Sem alteração material relevante; não indica revisão automática apenas pela atualização da planilha.',
+            'Ethylbenzene': 'Sem alteração material relevante; não indica revisão automática apenas pela atualização da planilha.',
+            'Xylene': 'Sem alteração material relevante; não indica revisão automática apenas pela atualização da planilha.'
+        }
+        st.dataframe(group_rows_by_cas(master, btex_cas, btex_interp), use_container_width=True, hide_index=True)
+
     with tab2:
-        st.subheader('Etenos clorados'); st.markdown('Os etenos clorados são relevantes em cenários de intrusão de vapores e exposição por inalação. PCE e TCE apresentaram alterações menores; cis-1,2-DCE e trans-1,2-DCE merecem atenção regulatória/potabilidade; 1,1-DCE e cloreto de vinila foram enquadrados como D1.')
-        data=pd.DataFrame([['PCE / Tetracloroeteno','B','Alteração menor; não indica revisão automática.'],['TCE / Tricloroeteno','B','Alteração menor; não indica revisão automática.'],['cis-1,2-DCE','C','Atenção regulatória/potabilidade.'],['trans-1,2-DCE','C','Atenção regulatória/potabilidade.'],['1,1-DCE','D1','Revisão dirigida/recomendada se for SQI relevante.'],['Cloreto de vinila','D1','RfCi reduzido de 1,0E-01 para 2,0E-02 mg/m³; atenção à inalação/intrusão de vapores.']],columns=['Composto','Classe','Interpretação']); st.dataframe(data,use_container_width=True,hide_index=True)
+        st.subheader('Etenos clorados')
+        st.markdown(
+            'Os etenos clorados são relevantes em cenários de intrusão de vapores e exposição por inalação. '
+            'PCE e TCE apresentaram alterações menores; cis-1,2-DCE e trans-1,2-DCE merecem atenção regulatória/potabilidade; '
+            '1,1-DCE e cloreto de vinila foram enquadrados como D1.'
+        )
+        data = pd.DataFrame([
+            ['PCE / Tetracloroeteno', 'B', 'Alteração menor; não indica revisão automática.'],
+            ['TCE / Tricloroeteno', 'B', 'Alteração menor; não indica revisão automática.'],
+            ['cis-1,2-DCE', 'C', 'Atenção regulatória/potabilidade.'],
+            ['trans-1,2-DCE', 'C', 'Atenção regulatória/potabilidade.'],
+            ['1,1-DCE', 'D1', 'Revisão dirigida/recomendada se for SQI relevante.'],
+            ['Cloreto de vinila', 'D1', 'RfCi reduzido de 1,0E-01 para 2,0E-02 mg/m³; atenção à inalação/intrusão de vapores.']
+        ], columns=['Composto','Classe','Interpretação'])
+        st.dataframe(data, use_container_width=True, hide_index=True)
+
     with tab3:
-        st.subheader('TPH'); st.markdown('Para TPH, a principal alteração material identificada está associada à fração alifática leve C5-C8, enquadrada como D2 por alterações físico-químicas relevantes. As demais faixas avaliadas permaneceram sem alteração material relevante.')
-        data=pd.DataFrame([['TPH alifático baixo C5-C8','D2','Revisão dirigida; alteração físico-química relevante.'],['TPH alifático médio C9-C18','A','Sem alteração material relevante.'],['TPH alifático alto C19-C32','A','Sem alteração material relevante.'],['TPH aromático médio C9-C10','A','Sem alteração material relevante.'],['TPH aromático alto C10-C32','A','Sem alteração material relevante.']],columns=['Faixa','Classe','Interpretação']); st.dataframe(data,use_container_width=True,hide_index=True); st.info('As faixas de TPH possuem caráter complementar e não substituem a avaliação de compostos individuais de petróleo quando identificados.')
+        st.subheader('TPH')
+        st.markdown(
+            'Para TPH, a principal alteração material identificada está associada à fração alifática leve C5-C8, '
+            'enquadrada como D2 por alterações físico-químicas relevantes. As demais faixas avaliadas permaneceram sem alteração material relevante.'
+        )
+        data = pd.DataFrame([
+            ['TPH alifático baixo C5-C8', 'D2', 'Revisão dirigida; alteração físico-química relevante.'],
+            ['TPH alifático médio C9-C18', 'A', 'Sem alteração material relevante.'],
+            ['TPH alifático alto C19-C32', 'A', 'Sem alteração material relevante.'],
+            ['TPH aromático médio C9-C10', 'A', 'Sem alteração material relevante.'],
+            ['TPH aromático alto C10-C32', 'A', 'Sem alteração material relevante.']
+        ], columns=['Composto','Classe','Interpretação'])
+        st.dataframe(data, use_container_width=True, hide_index=True)
+        st.info('As faixas de TPH possuem caráter complementar e não substituem a avaliação de compostos individuais de petróleo quando identificados.')
+
     with tab4:
-        st.subheader('PFAS'); st.markdown('A v4.00 ampliou a representação de PFAS e compostos correlatos. O ganho não é apenas a inclusão de novas substâncias, mas também o preenchimento de lacunas físico-químicas e toxicológicas que limitavam avaliações anteriores.')
-        pfas=master[master['Composto'].str.lower().str.contains('pfos|pfoa|hfpo|perfluoro|genx',na=False)]; st.dataframe(pfas[['CAS','Composto','Classe','Recomendação']],use_container_width=True,hide_index=True)
+        st.subheader('PFAS')
+        st.markdown(
+            'A v4.00 ampliou a representação de PFAS e compostos correlatos. O ganho não é apenas a inclusão de novas substâncias, '
+            'mas também o preenchimento de lacunas físico-químicas e toxicológicas que limitavam avaliações anteriores.'
+        )
+        pfas_pattern = 'perfluoro|fluorotelomer|hfpo|genx|pfos|pfoa|pfbs|pfhxs|pfna|pfda|pfba|pfhpa|pfhxa'
+        pfas = group_rows_by_regex(master, pfas_pattern)
+        st.dataframe(pfas, use_container_width=True, hide_index=True)
+
     with tab5:
-        st.subheader('Metais'); st.markdown('Para metais, a interpretação deve considerar forma química, Kd, pH e particionamento solo-água. Mudanças nesses parâmetros podem afetar mobilidade, lixiviação e transporte, mas seu impacto é fortemente dependente do modelo conceitual e das condições hidrogeoquímicas.')
+        st.subheader('Metais')
+        st.markdown(
+            'Para metais, a interpretação deve considerar forma química, Kd, pH, especiação e particionamento solo-água. '
+            'Mudanças nesses parâmetros podem afetar mobilidade, lixiviação e transporte, mas o impacto é fortemente dependente do modelo conceitual e das condições hidrogeoquímicas.'
+        )
+        metais_pattern = (
+            'arsenic|barium|beryllium|boron|cadmium|chromium|cobalt|copper|lead|manganese|mercury|molybdenum|'
+            'nickel|selenium|silver|thallium|vanadium|zinc|antimony|aluminum|iron|lithium|tin|titanium|uranium|lanthanum'
+        )
+        metais = group_rows_by_regex(master, metais_pattern)
+        if metais.empty:
+            st.warning('Nenhum metal foi localizado na tabela consolidada com o critério de busca atual.')
+        else:
+            st.dataframe(metais, use_container_width=True, hide_index=True)
+            st.caption('A lista acima é baseada na identificação nominal dos compostos metálicos na tabela consolidada. A interpretação deve considerar a forma química específica de cada SQI.')
 
 elif page=='Highlights Manual CETESB':
     st.title('Highlights do Manual do Usuário da CETESBRisk v4.00')
