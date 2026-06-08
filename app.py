@@ -1,13 +1,14 @@
 from pathlib import Path
 from datetime import datetime
 import pandas as pd
+import re
 import streamlit as st
 import plotly.express as px
 
 st.set_page_config(page_title='CETESBRisk Explorer', page_icon='🧪', layout='wide')
 DATA_PATH = Path(__file__).parent / 'data' / 'Analise_detalhada_CETESBRisk_2023_vs_2026_CMA.xlsx'
 
-FIXED_CLASS_COUNTS = {'A':296,'B':471,'C':18,'D1':23,'D2':11}
+FIXED_CLASS_COUNTS = {'A':253,'B':514,'C':18,'D1':22,'D2':12}
 GLOBAL_COUNTS = {'SQIs comuns comparadas':819,'Comparações individuais':29484,'Novas SQIs incluídas':59,'SQIs removidas':1,'Comparações com alteração':1009,'Comparações sem alteração':16565,'Sem valor/vazios':11910}
 CLASS_DESCRIPTIONS = {
  'A':{'descricao':'Sem alteração material relevante','recomendacao':'Não indica revisão automática da AR exclusivamente pela atualização da planilha.'},
@@ -32,10 +33,19 @@ def mat_var(row,t=0.05):
     try: return abs(float(row.get('Variação % Parâmetro',0))) >= t
     except Exception: return False
 
+def safe_name_override_match(name_l, key):
+    # Evita que termos genéricos como 'benzene' classifiquem indevidamente
+    # compostos como chlorobenzene, nitrobenzene ou dichlorobenzene.
+    pattern = r'(?<![a-z0-9])' + re.escape(str(key).lower()) + r'(?![a-z0-9])'
+    return re.search(pattern, name_l) is not None
+
 def classify(cas,name,g):
     cas = '' if pd.isna(cas) else str(cas).strip(); name_l = '' if pd.isna(name) else str(name).lower()
     if cas in CAS_OVERRIDES: return CAS_OVERRIDES[cas]
     for key,cls in NAME_OVERRIDES:
+        # Mantém a regra de classificação aprovada anteriormente.
+        # Os grupos prioritários (BTEX/PFAS/Metais) são filtrados separadamente por CAS/regex,
+        # portanto a mitigação de falsos positivos deve ocorrer na exibição dos grupos, não na classificação global.
         if key in name_l: return cls
     ch = g[g.apply(changed,axis=1)]
     if ch.empty: return 'A'
@@ -219,8 +229,8 @@ def build_interpretive_synthesis(selected, cas, cls, detail):
 def top_changed_parameters_by_source(comp, fonte, n=5):
     df = comp.copy()
     df = df[df['Fonte'].astype(str).str.lower() == fonte.lower()]
-    if 'Status' in df.columns:
-        df = df[df['Status'].astype(str).str.lower().ne('sem alteração')]
+    # Contabiliza apenas alterações reais, usando a mesma regra do restante do app.
+    df = df[df.apply(changed, axis=1)].copy()
     if df.empty:
         return pd.DataFrame(columns=['Parâmetro', 'Nº de SQIs afetadas'])
     out = (
@@ -233,6 +243,37 @@ def top_changed_parameters_by_source(comp, fonte, n=5):
     return out
 
 
+
+
+def density_change_summary(comp, master):
+    dens = comp[(comp['Parâmetro'].astype(str) == 'Densidade') & (comp.apply(changed, axis=1))].copy()
+    if dens.empty:
+        return pd.DataFrame(columns=['Classe', 'SQIs com alteração de densidade', 'Faixa de variação da densidade (%)'])
+    class_map = master[['CAS','Classe']].drop_duplicates().copy()
+    class_map['CAS'] = class_map['CAS'].astype(str)
+    dens['CAS'] = dens['CAS'].astype(str)
+    dens = dens.merge(class_map, on='CAS', how='left')
+    dens['var_pct_num'] = pd.to_numeric(dens['Variação % Parâmetro'], errors='coerce') * 100
+
+    def fmt_range(s):
+        s = s.dropna()
+        if s.empty:
+            return 'n.d.'
+        return f"{s.min():+.2f} a {s.max():+.2f}".replace('.', ',')
+
+    out = (
+        dens.groupby('Classe', dropna=False)
+        .agg(**{
+            'SQIs com alteração de densidade': ('CAS', 'nunique'),
+            'Faixa de variação da densidade (%)': ('var_pct_num', fmt_range)
+        })
+        .reset_index()
+    )
+    ordem = pd.DataFrame({'Classe':['A','B','C','D1','D2']})
+    out = ordem.merge(out, on='Classe', how='left')
+    out['SQIs com alteração de densidade'] = out['SQIs com alteração de densidade'].fillna(0).astype(int)
+    out['Faixa de variação da densidade (%)'] = out['Faixa de variação da densidade (%)'].fillna('n.d.')
+    return out
 
 def group_rows_by_cas(master, cas_list, interpretation_map=None):
     df = master[master['CAS'].astype(str).isin([str(c) for c in cas_list])].copy()
@@ -269,7 +310,7 @@ st.sidebar.title('🧪 CETESBRisk Explorer')
 st.sidebar.markdown('**Desenvolvido por André Souza**  \nEspecialista em GAC  \n[LinkedIn](https://www.linkedin.com/in/andr%C3%A9-souza-63539517)')
 st.sidebar.divider()
 page=st.sidebar.radio('Navegação',['Início','Dashboard geral','Pesquisa SQI e impacto CMA','Grupos prioritários','Highlights Manual CETESB','Glossário Técnico','Downloads e notas'])
-st.sidebar.caption('v1.3 · grupos e SQIs')
+st.sidebar.caption('v1.5 · robustez sem alterar classes')
 
 if page=='Início':
     st.title('🧪 CETESBRisk Explorer')
@@ -279,6 +320,7 @@ O **CETESBRisk Explorer** é uma ferramenta de apoio à interpretação técnica
 
 A ferramenta **não recalcula avaliações de risco** e **não substitui a análise crítica do profissional responsável**. Seu objetivo é identificar alterações que possam justificar revisão dirigida de avaliações de risco previamente elaboradas.''')
     st.info('Mensagem-chave: a atualização da v4.00 não implica revisão automática de todas as avaliações de risco. A recomendação é realizar triagem dirigida por SQI, via de exposição e sensibilidade do cenário.')
+    st.info('Nota sobre a CETESBRisk v4.01: em 01/06/2026, a CETESB publicou a v4.01 com ajuste de fórmulas na aba EXP para as planilhas Trabalhador Comercial/Industrial e Trabalhador de Obra Civil. A classificação deste aplicativo permanece baseada na comparação v3.03 × v4.00 das bases FisQui e FatTox. Para uso quantitativo oficial em avaliações de risco e cálculo de CMA, recomenda-se sempre utilizar a versão mais recente da planilha CETESB.')
     st.markdown('''## 2. O que está sendo avaliado?
 Foram comparados os bancos de dados internos das duas versões da planilha CETESBRisk, com foco nas bases **FisQui** e **FatTox**.
 
@@ -493,11 +535,7 @@ elif page=='Dashboard geral':
         "Da mesma forma, pode ser classificada como C, D1 ou D2 quando existirem alterações regulatórias, toxicológicas ou físico-químicas mais relevantes associadas."
     )
 
-    densidade_df = pd.DataFrame({
-        "Classe": ["A", "B", "C", "D1", "D2"],
-        "SQIs com alteração de densidade": [264, 467, 18, 22, 11],
-        "Faixa de variação da densidade (%)": ["-4,04 a +2,20", "-4,86 a +4,70", "-3,35 a +2,73", "-3,31 a +2,78", "-7,64 a +20,00"]
-    })
+    densidade_df = density_change_summary(comp, master)
     st.dataframe(densidade_df, use_container_width=True, hide_index=True)
 
     st.markdown(
@@ -627,7 +665,7 @@ Ajuda a diferenciar parâmetros replicados dos RSLs da USEPA daqueles adaptados 
 Um dos pontos de maior relevância técnica é a limitação associada ao parâmetro **Lgw**, profundidade do nível d'água, no modelo de Johnson & Ettinger. O manual explicita que o valor de Lgw não pode ser inferior à soma da espessura da franja capilar e da espessura das fundações.
 
 Essa restrição evita combinações fisicamente inconsistentes em áreas com lençol freático raso e reduz o risco de uso inadequado da ferramenta em cenários de intrusão de vapores.''')
-    st.warning('Ponto de atenção: em áreas rasas, com franja capilar próxima à fundação, o modelo J&E pode não ser aplicável de forma direta. A planilha v4.00 torna essa restrição mais explícita e operacional.')
+    st.warning("Ponto de atenção: em áreas com nível d'água muito raso e franja capilar próxima à fundação, o modelo Johnson & Ettinger (J&E) pode superestimar ou subestimar a atenuação de vapores. Nesses casos, recomenda-se complementar a avaliação com dados de campo, como gás do solo, subslab ou ar interno, e realizar análise crítica dos pressupostos do modelo.")
     st.markdown('''## MCL, potabilidade e cálculo de risco
 O manual também ajuda a diferenciar valores regulatórios, como MCL e potabilidade, dos parâmetros efetivamente usados no cálculo de risco. Essa distinção é essencial para interpretar corretamente a Classe C: mudança em potabilidade pode afetar enquadramento regulatório, mas não significa automaticamente alteração do risco calculado.''')
 
