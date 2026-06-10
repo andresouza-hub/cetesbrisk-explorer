@@ -480,6 +480,46 @@ def group_rows_by_regex(master, pattern):
     return out[["Composto", "Classe", "Interpretação"]]
 
 
+
+def describe_potentially_affected_scope(detail):
+    eff = detail[detail.apply(lambda r: changed(r) and not is_density_submaterial(r), axis=1)].copy()
+    params = set(eff["Parâmetro"].dropna().astype(str)) if not eff.empty and "Parâmetro" in eff.columns else set()
+    vias, matrizes, receptores = set(), set(), set()
+
+    if params & {"RfDo", "SFO"}:
+        vias.update(["ingestão de água subterrânea", "ingestão de solo", "ingestão de vegetais", "contato dérmico, quando aplicável"])
+        matrizes.update(["água subterrânea", "solo superficial", "solo subsuperficial", "vegetais"])
+        receptores.update(["criança", "adulto", "residentes", "trabalhadores", "trabalhadores de obra civil"])
+    if params & {"RfCi", "IUR"}:
+        vias.update(["inalação de vapores", "intrusão de vapores", "inalação de ar ambiente", "inalação de ar do solo"])
+        matrizes.update(["ar ambiente", "ar do solo", "solo", "água subterrânea"])
+        receptores.update(["criança", "adulto", "residentes", "trabalhadores comerciais/industriais", "trabalhadores de obra civil"])
+    if params & {"H (-)", "HLC (atm-m³/mole)", "Pvap (mm Hg)", "Dia (cm²/s)", "Diw (cm²/s)", "PC (cm/h)"}:
+        vias.update(["volatilização", "intrusão de vapores", "inalação a partir do solo", "inalação a partir da água subterrânea"])
+        matrizes.update(["solo", "água subterrânea", "ar do solo", "ar ambiente"])
+        receptores.update(["residentes", "trabalhadores comerciais/industriais", "trabalhadores de obra civil"])
+    if params & {"Koc", "Kd (L/kg)", "S (mg/L)", "Csat", "log Kow", "FA", "B (-)", "PF (°C)"}:
+        vias.update(["lixiviação", "particionamento solo-água-ar", "transporte em água subterrânea", "ingestão de vegetais, quando aplicável"])
+        matrizes.update(["solo", "água subterrânea", "vegetais"])
+        receptores.update(["criança", "adulto", "residentes", "trabalhadores", "trabalhadores de obra civil"])
+    if params & {"MCL", "Potabilidade"}:
+        vias.update(["ingestão de água subterrânea", "enquadramento regulatório de potabilidade"])
+        matrizes.update(["água subterrânea"])
+        receptores.update(["receptores associados ao uso potável da água subterrânea"])
+
+    if not vias and not matrizes and not receptores:
+        return ""
+
+    def fmt(items):
+        return ", ".join(sorted(items)) if items else "não definido pela triagem automática"
+
+    return (
+        "\n\n**Vias, matrizes e receptores potencialmente afetados:** "
+        f"com base nos parâmetros alterados, a alteração pode repercutir principalmente em vias como {fmt(vias)}; "
+        f"matrizes como {fmt(matrizes)}; e receptores como {fmt(receptores)}. "
+        "Essa indicação é uma triagem técnica baseada na estrutura da CETESBRisk e não substitui o recálculo da avaliação de risco nem a análise crítica do modelo conceitual."
+    )
+
 def build_interpretive_synthesis(selected, cas, cls, detail):
     ch = detail[detail.apply(changed, axis=1)].copy()
     eff = detail[detail.apply(lambda r: changed(r) and not is_density_submaterial(r), axis=1)].copy()
@@ -488,7 +528,7 @@ def build_interpretive_synthesis(selected, cas, cls, detail):
 
     if ch.empty:
         return (
-            f"A comparação entre as versões CETESBRisk v3.03 e v4.00 indica que a SQI {selected} "
+            f"A comparação entre as versões CETESBRisk V3.03 e V4.01 indica que a SQI {selected} "
             f"(CAS {cas}) não apresentou alterações nos parâmetros avaliados. O composto foi enquadrado na Classe {cls} "
             f"({class_desc}), indicando que a atualização da planilha, isoladamente, não justifica revisão da avaliação de risco para esta SQI. "
             f"A necessidade de revisão deve ser considerada apenas se houver mudança do modelo conceitual, das vias de exposição, do uso da área ou de outras premissas do estudo."
@@ -580,6 +620,7 @@ def build_interpretive_synthesis(selected, cas, cls, detail):
     else:
         text += " Assim, a atualização da planilha, isoladamente, não indica necessidade de revisão da avaliação de risco para esta SQI."
 
+    text += describe_potentially_affected_scope(detail)
     return text
 
 
@@ -626,19 +667,19 @@ page = st.sidebar.radio(
     "Navegação",
     ["Início", "Dashboard geral", "Pesquisa SQI e impacto CMA", "Grupos prioritários", "Alterações em fórmulas", "Highlights Manual CETESB", "Glossário Técnico", "Downloads e notas"],
 )
-st.sidebar.caption("v2.1 · regra objetiva + auditoria de fórmulas")
+st.sidebar.caption("v2.2 · regra objetiva + auditoria de fórmulas")
 
 if page == "Início":
     st.title("🧪 CETESBRisk Explorer")
-    st.subheader("Comparador técnico CETESBRisk v3.03 (2023) × v4.00 (2026)")
+    st.subheader("Comparador técnico CETESBRisk V3.03 × V4.01")
     st.markdown(
         """## 1. O que é esta ferramenta?
-O **CETESBRisk Explorer** é uma ferramenta de apoio à interpretação técnica das alterações introduzidas entre as versões **CETESBRisk v3.03 (2023)** e **CETESBRisk v4.00 (2026)**.
+O **CETESBRisk Explorer** é uma ferramenta de apoio à interpretação técnica das alterações identificadas entre as versões **CETESBRisk V3.03** e **CETESBRisk V4.01**.
 
-A ferramenta **não recalcula avaliações de risco** e **não substitui a análise crítica do profissional responsável**. Seu objetivo é identificar alterações que possam justificar revisão dirigida de avaliações de risco previamente elaboradas."""
+A ferramenta **não recalcula avaliações de risco** e **não substitui a análise crítica do profissional responsável**. Seu objetivo é organizar, classificar e interpretar alterações em parâmetros físico-químicos, toxicológicos, regulatórios e em fórmulas internas da planilha, de modo a apoiar a triagem dirigida de avaliações de risco previamente elaboradas."""
     )
-    st.info("Mensagem-chave: a atualização da v4.00 não implica revisão automática de todas as avaliações de risco. A recomendação é realizar triagem dirigida por SQI, via de exposição e sensibilidade do cenário.")
-    st.info("Nota sobre a CETESBRisk v4.01: em 01/06/2026, a CETESB publicou a v4.01 com ajuste de fórmulas na aba EXP para as planilhas Trabalhador Comercial/Industrial e Trabalhador de Obra Civil. A classificação deste aplicativo permanece baseada na comparação v3.03 × v4.00 das bases FisQui e FatTox. Para uso quantitativo oficial em avaliações de risco e cálculo de CMA, recomenda-se sempre utilizar a versão mais recente da planilha CETESB.")
+    st.info("Mensagem-chave: a atualização da CETESBRisk não implica revisão automática de todas as avaliações de risco. A recomendação é realizar triagem dirigida por SQI, via de exposição, receptor, matriz ambiental, sensibilidade do cenário e eventual uso de células ou rotas afetadas por correções de fórmula.")
+    st.info("Para uso quantitativo oficial em avaliações de risco e cálculo de Concentrações Máximas Aceitáveis (CMAs), recomenda-se sempre utilizar a versão mais recente disponibilizada pela CETESB.")
 
     st.markdown(
         """## 2. O que está sendo avaliado?
@@ -674,8 +715,8 @@ A **FisQui** reúne parâmetros físico-químicos, como Henry, solubilidade, Koc
     c2.metric("Comparações individuais", "29.484")
     c3.metric("Novas SQIs incluídas", "59")
     c4.metric("SQIs removidas", "1")
-    c5.metric("Versões avaliadas", "2023 × 2026")
-    st.caption("A comparação detalhada foi realizada para 819 SQIs presentes em ambas as versões. Adicionalmente, foram identificadas 59 novas substâncias incluídas na v4.00 e 1 substância removida em relação à v3.03.")
+    c5.metric("Versões avaliadas", "V3.03 × V4.01")
+    st.caption("A comparação detalhada foi realizada para 819 SQIs presentes em ambas as versões. Adicionalmente, foram identificadas 59 novas substâncias incluídas na versão mais recente avaliada e 1 substância removida em relação à V3.03.")
 
     st.markdown("## 4. Como os compostos foram classificados?")
     st.markdown(
@@ -755,53 +796,56 @@ Diferentemente da Classe D1, essas alterações não representam necessariamente
 
     st.info("Importante: as classes representam uma ferramenta de triagem técnica para priorização de revisões. A classificação não substitui a análise crítica do modelo conceitual da área, das vias de exposição, das substâncias efetivamente presentes e dos resultados históricos disponíveis.")
 
-    st.markdown("## 6. Fluxo decisório: quando revisar uma avaliação anterior?")
+    st.markdown("## 6. Alterações em fórmulas")
+    st.markdown(
+        """Além das alterações nas bases físico-químicas, toxicológicas e regulatórias, foram identificadas correções pontuais em fórmulas internas entre as versões avaliadas da CETESBRisk. Essas correções não alteram, por si só, a classificação global das SQIs em **A/B/C/D1/D2**, pois não representam alteração direta de toxicidade, propriedade físico-química ou critério regulatório da substância.
+
+No entanto, algumas correções podem afetar resultados específicos de risco ou CMA quando a avaliação anterior tiver utilizado a versão, a planilha, a aba, a célula, a rota de exposição ou a posição de SQI diretamente afetada. Por esse motivo, as alterações em fórmulas são apresentadas em camada própria de auditoria.
+
+Foram identificadas **quatro correções principais**: uma correção de fator numérico, uma correção de referência nomeada, uma correção conceitual de fórmula e uma correção estrutural material na aba **CMA AS Cr**, célula **J56**, associada à CMA para água subterrânea, criança, contato dérmico. A descrição detalhada dessas correções está disponível na aba **Alterações em fórmulas**."""
+    )
+
+    st.markdown("## 7. Fluxo decisório: quando revisar uma avaliação anterior?")
     st.markdown(
         """**Perguntas de triagem recomendadas:**
 1. O modelo conceitual possui SQIs da Classe D1, como PFAS, cloreto de vinila ou 1,1-DCE?
-2. Há SQIs da Classe D2 associadas a volatilização, intrusão de vapores ou transporte em fase vapor?
+2. Há SQIs da Classe D2 associadas a volatilização, intrusão de vapores, particionamento solo-água-ar ou transporte em fase vapor?
 3. A avaliação anterior estava próxima da margem de aceitabilidade, como HQ ≈ 1 ou risco ≈ 1E-05?
 4. A avaliação baseou-se predominantemente em frações genéricas de TPH em vez de compostos individuais de petróleo?
+5. A avaliação anterior utilizou alguma planilha, aba, rota, célula ou posição de SQI afetada por correção de fórmula entre as versões avaliadas?
+6. A correção identificada atinge uma rota que controlava, ou poderia controlar, a CMA ou o risco calculado?
 
 Se a resposta for **sim** para uma ou mais perguntas, recomenda-se **revisão dirigida**. Se todas forem **não**, a atualização da planilha, isoladamente, não indica revisão automática."""
     )
 
-
-    st.markdown("## 7. Alterações em fórmulas")
-    st.markdown(
-        """Além da comparação dos parâmetros FisQui e FatTox, foram registradas correções pontuais de fórmulas identificadas entre a CETESBRisk V3.03 e a V4.01. Essas correções não alteram, por si só, a classificação global das SQIs em A/B/C/D1/D2, pois essa classificação está associada às alterações nos parâmetros físico-químicos, toxicológicos ou regulatórios.
-
-As correções de fórmulas devem ser interpretadas como uma camada própria de auditoria da ferramenta. Quando a correção atingir uma célula efetivamente utilizada no cálculo de risco ou CMA, recomenda-se avaliar pontualmente se estudos anteriores dependiam daquela rota, daquele módulo e daquela posição de SQI. A descrição detalhada dessas correções está disponível na aba **Alterações em fórmulas**."""
-    )
-
     st.markdown("## 8. Resultado da classificação")
     r1, r2, r3, r4, r5 = st.columns(5)
-    r1.metric("Classe A", str(CLASS_COUNTS.get("A", 0)), delta=pct_delta_label(CLASS_COUNTS.get("A", 0), LEGACY_CLASS_COUNTS["A"]))
-    r2.metric("Classe B", str(CLASS_COUNTS.get("B", 0)), delta=pct_delta_label(CLASS_COUNTS.get("B", 0), LEGACY_CLASS_COUNTS["B"]))
-    r3.metric("Classe C", str(CLASS_COUNTS.get("C", 0)), delta=pct_delta_label(CLASS_COUNTS.get("C", 0), LEGACY_CLASS_COUNTS["C"]))
-    r4.metric("Classe D1", str(CLASS_COUNTS.get("D1", 0)), delta=pct_delta_label(CLASS_COUNTS.get("D1", 0), LEGACY_CLASS_COUNTS["D1"]))
-    r5.metric("Classe D2", str(CLASS_COUNTS.get("D2", 0)), delta=pct_delta_label(CLASS_COUNTS.get("D2", 0), LEGACY_CLASS_COUNTS["D2"]))
+    r1.metric("Classe A", str(CLASS_COUNTS.get("A", 0)))
+    r2.metric("Classe B", str(CLASS_COUNTS.get("B", 0)))
+    r3.metric("Classe C", str(CLASS_COUNTS.get("C", 0)))
+    r4.metric("Classe D1", str(CLASS_COUNTS.get("D1", 0)))
+    r5.metric("Classe D2", str(CLASS_COUNTS.get("D2", 0)))
 
     st.markdown("## 9. PFAS e compostos correlatos")
-    st.markdown("A v4.00 ampliou significativamente a capacidade de avaliação de PFAS e compostos correlatos. O ganho não é apenas numérico: vários compostos passaram a ter maior preenchimento de parâmetros físico-químicos e toxicológicos, reduzindo lacunas que limitavam análises anteriores.")
+    st.markdown("A V4.01 ampliou significativamente a capacidade de avaliação de PFAS e compostos correlatos. O ganho não é apenas numérico: vários compostos passaram a ter maior preenchimento de parâmetros físico-químicos e toxicológicos, reduzindo lacunas que limitavam análises anteriores.")
 
     st.markdown("## 10. Limitações da classificação")
     st.markdown("A classificação apresentada nesta ferramenta representa uma triagem técnica baseada nas alterações identificadas entre as versões da CETESBRisk. A decisão de revisar ou não uma avaliação de risco deve considerar adicionalmente o modelo conceitual da área, as vias de exposição completas, as SQIs efetivamente presentes, os resultados históricos e a proximidade aos critérios de aceitabilidade.")
 
     st.markdown("## 11. Conclusão executiva")
     st.markdown(
-        f"""A versão **CETESBRisk v4.00** representa um avanço importante na atualização das bases físico-químicas e toxicológicas, bem como na transparência da ferramenta, especialmente pela publicação do **Manual do Usuário**.
-
-Com a regra objetiva adotada, **{CLASS_COUNTS.get('A', 0)} de 819 SQIs** foram classificadas como Classe A. Isso indica que a maior parte dos compostos avaliados não apresentou alteração considerada material para fins de classificação.
+        f"""A comparação entre **CETESBRisk V3.03** e **CETESBRisk V4.01** indica que a maior parte das SQIs avaliadas não apresentou alteração considerada material para fins de classificação. Com a regra objetiva adotada, **{CLASS_COUNTS.get('A', 0)} de 819 SQIs** foram classificadas como Classe A.
 
 A abordagem recomendada é uma **triagem dirigida**, priorizando substâncias classificadas como **D1**, cenários sensíveis à volatilização e intrusão de vapores associados à **D2**, além de grupos de atenção como **PFAS**, **cloreto de vinila**, **1,1-DCE** e **TPH alifático leve C5-C8**.
+
+Além das alterações paramétricas, foram identificadas correções pontuais em fórmulas internas da planilha, incluindo uma correção estrutural material na aba **CMA AS Cr**, célula **J56**. Essas correções não alteram a classificação global das SQIs, mas podem justificar verificação pontual de avaliações anteriores quando a planilha, rota, célula ou posição afetada tiver sido efetivamente utilizada.
 
 Alterações isoladas de densidade inferiores a 5% foram tratadas como não materiais para classificação e, por isso, não devem inflar artificialmente a Classe B."""
     )
 
 elif page == "Dashboard geral":
     st.title("Dashboard geral")
-    st.write("Exploração quantitativa dos pontos de dados comparados entre as versões v3.03 e v4.00.")
+    st.write("Exploração quantitativa dos pontos de dados comparados entre as versões V3.03 e V4.01.")
 
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Pontos de dados analisados", "29.484")
@@ -825,8 +869,8 @@ elif page == "Dashboard geral":
     st.plotly_chart(fig2, use_container_width=True)
 
     st.divider()
-    st.subheader("SQIs incluídas e removidas na v4.00")
-    st.markdown("A v4.00 incluiu 59 novas Substâncias Químicas de Interesse (SQIs) e removeu 1 registro em relação à v3.03. Essas listas são apresentadas separadamente, não compondo as classes A/B/C/D1/D2 das 819 SQIs comuns.")
+    st.subheader("SQIs incluídas e removidas na V4.01")
+    st.markdown("A V4.01 incluiu 59 novas Substâncias Químicas de Interesse (SQIs) e removeu 1 registro em relação à V3.03. Essas listas são apresentadas separadamente, não compondo as classes A/B/C/D1/D2 das 819 SQIs comuns.")
     tab_inc, tab_rem = st.tabs(["SQIs incluídas", "SQIs removidas"])
     with tab_inc:
         st.dataframe(incl, use_container_width=True, hide_index=True)
@@ -961,7 +1005,7 @@ elif page == "Grupos prioritários":
 
     with tab4:
         st.subheader("PFAS")
-        st.markdown("A v4.00 ampliou a representação de PFAS e compostos correlatos. O ganho não é apenas a inclusão de novas substâncias, mas também o preenchimento de lacunas físico-químicas e toxicológicas que limitavam avaliações anteriores.")
+        st.markdown("A V4.01 ampliou a representação de PFAS e compostos correlatos. O ganho não é apenas a inclusão de novas substâncias, mas também o preenchimento de lacunas físico-químicas e toxicológicas que limitavam avaliações anteriores.")
         pfas_pattern = "perfluoro|fluorotelomer|hfpo|genx|pfos|pfoa|pfbs|pfhxs|pfna|pfda|pfba|pfhpa|pfhxa"
         pfas = group_rows_by_regex(master, pfas_pattern)
         st.dataframe(pfas, use_container_width=True, hide_index=True)
@@ -1019,13 +1063,29 @@ Assim, as alterações em fórmulas devem ser tratadas como uma camada própria 
             "Células afetadas": "I8",
             "Tipo de alteração": "Correção conceitual de fórmula",
             "Alteração principal": "Remoção de EV.c",
-            "Módulo afetado": "Fator de ingresso para inalação de partículas, criança",
+            "Módulo afetado": "Fator de ingresso para inalação de partículas de solo por crianças",
             "Impacto potencial": "O impacto numérico padrão tende a ser nulo, pois EV.c possui valor padrão igual a 1. Ainda assim, a remoção corrige a estrutura lógica da fórmula.",
-            "Interpretação": "Correção conceitual pontual. A variável EV.c corresponde à frequência de eventos para contato dérmico com solo/água, enquanto FI!I8 está associada à rota de inalação de partículas.",
+            "Interpretação": "Correção conceitual pontual. A variável EV.c corresponde à frequência de eventos para contato dérmico com solo/água, enquanto FI!I8 está associada à rota de inalação de partículas de solo por crianças.",
+        },
+        {
+            "Correção": "Correção estrutural material em CMA AS Cr",
+            "Aba": "CMA AS Cr",
+            "Células afetadas": "J56",
+            "Tipo de alteração": "Correção estrutural material de fórmula",
+            "Alteração principal": "Remoção de termos duplicados/indevidos: EV.c, 1000 e ETw.sub.derm.c",
+            "Módulo afetado": "CMA para água subterrânea, criança, contato dérmico",
+            "Impacto potencial": "Mantidos os demais termos constantes, a razão isolada estimada é 1000/0,54 ≈ 1.852, indicando potencial redução expressiva da CMA dérmica infantil em água subterrânea na V4.01 para essa via específica.",
+            "Interpretação": "Correção estrutural material pontual. Não altera a classificação global da SQI, mas pode justificar reavaliação quando essa célula, rota ou posição tiver controlado a CMA ou o risco em estudo anterior.",
         },
     ]
 
     summary_df = pd.DataFrame(formula_changes)
+    st.subheader("Quadro-resumo")
+    type_summary = summary_df["Tipo de alteração"].value_counts().reset_index()
+    type_summary.columns = ["Tipo de correção", "Quantidade"]
+    type_summary = pd.concat([type_summary, pd.DataFrame([{"Tipo de correção": "Total", "Quantidade": int(type_summary["Quantidade"].sum())}])], ignore_index=True)
+    st.dataframe(type_summary, use_container_width=True, hide_index=True)
+
     st.subheader("Resumo das correções identificadas")
     st.dataframe(summary_df[["Correção", "Aba", "Células afetadas", "Tipo de alteração", "Alteração principal", "Impacto potencial"]], use_container_width=True, hide_index=True)
 
@@ -1107,7 +1167,7 @@ Essa alteração também é uma correção pontual de fórmula/referência, não
 | Célula afetada | I8 |
 | Tipo de alteração | Correção conceitual de fórmula |
 | Alteração principal | Remoção de EV.c |
-| Módulo afetado | Fator de ingresso para inalação de partículas, criança |
+| Módulo afetado | Fator de ingresso para inalação de partículas de solo por crianças |
 
 **Fórmula na V3.03, célula I8**
 ```excel
@@ -1121,14 +1181,57 @@ IF(CENÁRIOS!$H$12=TRUE,((IRaamb.c*EF.c*ETs.c*ED.c)/(BW.c*ATc.c)),"-")
 
 **Interpretação técnica**
 
-Na V3.03, a fórmula de FI!I8 incluía a variável EV.c. Essa variável corresponde à frequência de eventos para contato dérmico com solo/água. No entanto, a célula FI!I8 está associada à rota de inalação de partículas, não à rota de contato dérmico.
+Na V3.03, a fórmula de FI!I8 incluía a variável EV.c. Essa variável corresponde à frequência de eventos para contato dérmico com solo/água. No entanto, a célula FI!I8 está associada à rota de inalação de partículas de solo por crianças, não à rota de contato dérmico.
 
-Na V4.01, EV.c foi removida da fórmula, tornando a equação mais coerente com a rota de exposição representada. Do ponto de vista numérico, o impacto padrão tende a ser nulo, porque EV.c possui valor padrão igual a 1. Portanto, multiplicar ou não por EV.c não altera o resultado padrão. Ainda assim, a remoção é tecnicamente relevante porque corrige a estrutura lógica da fórmula.
+Na V4.01, EV.c foi removida da fórmula, tornando a equação mais coerente com a rota de exposição representada: inalação de partículas de solo por crianças. Do ponto de vista numérico, o impacto padrão tende a ser nulo, porque EV.c possui valor padrão igual a 1. Portanto, multiplicar ou não por EV.c não altera o resultado padrão. Ainda assim, a remoção é tecnicamente relevante porque corrige a estrutura lógica da fórmula.
 
 Essa alteração deve ser interpretada como correção conceitual pontual, não como mudança metodológica ampla. Ela não altera a classificação global da SQI, mas deve constar na aba de auditoria de alterações em fórmulas.""")
 
+
+    with st.expander("4. Correção estrutural material em CMA AS Cr!J56"):
+        st.markdown("""**Local da alteração**
+
+| Item | Informação |
+|---|---|
+| Planilha | CETESBRisk Residencial Urbano |
+| Versões comparadas | CETESBRisk V3.03 × CETESBRisk V4.01 |
+| Aba | CMA AS Cr |
+| Célula afetada | J56 |
+| Tipo de alteração | Correção estrutural material de fórmula |
+| Módulo afetado | CMA para água subterrânea, criança, contato dérmico |
+
+**Fórmula na V3.03, célula J56**
+```excel
+=IF(CENÁRIOS!$H$21=TRUE,IF(PM.24="","-",IF(OR(Sf.dm.24="-",Sf.dm.24="",Sf.dm.24=0,PC.24=""),"-",((TR*EV.c*1000)/(PC.24*ETw.sub.derm.c*IF.ASub.Con.Der.c.c*Sf.dm.24)))),"-")
+```
+
+**Fórmula na V4.01, célula J56**
+```excel
+=IF(CENÁRIOS!$H$21=TRUE,IF(PM.24="","-",IF(OR(Sf.dm.24="-",Sf.dm.24="",Sf.dm.24=0,PC.24=""),"-",(TR/(PC.24*IF.ASub.Con.Der.c.c*Sf.dm.24)))),"-")
+```
+
+**Interpretação técnica**
+
+Na V3.03, a fórmula incluía **EV.c**, o fator **1000** e **ETw.sub.derm.c** em conjunto com o fator nomeado **IF.ASub.Con.Der.c.c**. A análise indica que **IF.ASub.Con.Der.c.c** já incorpora termos de exposição dérmica, incluindo **EV.c** e **ETw.sub.derm.c**. Dessa forma, a fórmula da V3.03 aparentava duplicar termos de exposição dérmica e adicionar um fator **1000·EV.c** indevido.
+
+Mantidos os demais termos constantes, a razão isolada entre as fórmulas pode ser estimada como:
+
+```text
+CMA V3 / CMA V4 ≈ 1000 × EV.c / ETw.sub.derm.c
+```
+
+Considerando **EV.c = 1** e **ETw.sub.derm.c = 0,54**, a razão estimada é:
+
+```text
+1000 / 0,54 ≈ 1.852
+```
+
+Assim, para essa célula e rota específica, a V3.03 podia gerar uma CMA dérmica para criança em água subterrânea aproximadamente **1.852 vezes maior** que a V4.01.
+
+Essa alteração deve ser interpretada como correção estrutural pontual de fórmula, e não como alteração toxicológica ou físico-química da SQI. Ela não altera diretamente a classificação global A/B/C/D1/D2, mas pode justificar reavaliação pontual de estudos anteriores que tenham utilizado a V3.03 com essa rota ativa. A interpretação do impacto final deve considerar que a CMA global da água subterrânea pode ser controlada por outra via mais restritiva, como ingestão de água subterrânea.""")
+
 elif page == "Highlights Manual CETESB":
-    st.title("Highlights do Manual do Usuário da CETESBRisk v4.00")
+    st.title("Highlights do Manual do Usuário da CETESBRisk V4.01")
     st.write("Principais ganhos técnicos e pontos de atenção associados à primeira publicação do Manual do Usuário da planilha CETESB.")
     st.markdown("""## De planilha a documento de governança
 O maior ganho do Manual do Usuário é transformar a planilha em uma referência documentada de uso, reduzindo ambiguidades e divergências interpretativas entre consultorias, clientes e órgão ambiental.""")
@@ -1172,7 +1275,7 @@ elif page == "Glossário Técnico":
         ("Parâmetros físico-químicos", "Csat", "Concentração de Saturação. Concentração acima da qual pode haver limitação física de solubilidade ou particionamento no meio avaliado."),
         ("Critérios regulatórios", "MCL", "Maximum Contaminant Level. Padrão de potabilidade adotado pela USEPA para água destinada ao consumo humano."),
         ("Critérios regulatórios", "Potabilidade", "Critérios ou padrões aplicáveis à qualidade da água destinada ao consumo humano."),
-        ("Modelagem de exposição", "Lgw", "Profundidade do nível d'água utilizada em modelos de intrusão de vapores. Na CETESBRisk v4.00, há restrição para evitar combinações fisicamente inconsistentes com a franja capilar e fundações."),
+        ("Modelagem de exposição", "Lgw", "Profundidade do nível d'água utilizada em modelos de intrusão de vapores. Na CETESBRisk V4.01, há restrição para evitar combinações fisicamente inconsistentes com a franja capilar e fundações."),
         ("Modelagem de exposição", "Intrusão de Vapores", "Migração de vapores de substâncias voláteis presentes no solo ou água subterrânea para ambientes internos de edificações."),
         ("Modelagem de exposição", "Johnson & Ettinger", "Modelo utilizado para estimar intrusão de vapores a partir de fontes em solo ou água subterrânea. Possui premissas e limitações, especialmente em áreas com nível d'água raso."),
     ]

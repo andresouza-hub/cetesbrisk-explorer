@@ -1,12 +1,12 @@
 # CETESBRisk Explorer
 
-Aplicativo Streamlit para apoiar a interpretação técnica das alterações entre as planilhas CETESBRisk v3.03 (2023) e v4.00 (2026), com foco nas bases FisQui e FatTox, além de registrar correções pontuais de fórmulas identificadas entre a V3.03 e a V4.01.
+Aplicativo Streamlit para apoiar a interpretação técnica das alterações entre as planilhas CETESBRisk V3.03 e V4.01, com foco nas bases FisQui e FatTox, além de registrar correções pontuais de fórmulas identificadas entre as versões.
 
 ## Versão atual
 
-**v2.1 - regra objetiva com densidade >= 5% e aba de alterações em fórmulas**
+**v2.2 - regra objetiva com densidade >= 5%, auditoria de fórmulas e triagem por vias/matrizes/receptores**
 
-Esta versão implementa a classificação objetiva e hierárquica das SQIs nas classes A/B/C/D1/D2, conforme decisão metodológica consolidada, e inclui uma aba específica para auditoria de alterações em fórmulas.
+Esta versão implementa a classificação objetiva e hierárquica das SQIs nas classes A/B/C/D1/D2, conforme decisão metodológica consolidada, documenta quatro correções de fórmulas e amplia a síntese técnica por SQI com vias, matrizes e receptores potencialmente afetados.
 
 ## Regra de classificação implementada
 
@@ -43,10 +43,10 @@ A densidade é tratada como parâmetro auxiliar. Ela não classifica a SQI como 
 - Correção do enquadramento de cis-1,2-DCE e trans-1,2-DCE, que deixam de ser Classe C por não apresentarem alteração em MCL ou Potabilidade.
 - Implementação do limiar de materialidade para densidade em módulo: `|Δ| >= 5%`.
 - Atualização dos textos explicativos da aba Início.
-- Atualização da síntese técnica estruturada da aba Pesquisa SQI e impacto CMA, preservando o formato detalhado já existente.
+- Atualização da síntese técnica estruturada da aba Pesquisa SQI e impacto CMA, preservando o formato detalhado já existente e adicionando vias, matrizes e receptores potencialmente afetados.
 - Atualização do Dashboard geral, rankings, tabela consolidada, quadro de densidade e notas metodológicas.
 - Inclusão de arquivo de auditoria da classificação na pasta `data/`.
-- Inclusão da aba **Alterações em fórmulas**, documentando correções pontuais como 9^3 → 10^3 em CMA Solo Cr, Cf.GasSolo.14 → Cf.GasSolo.4 em CMA AR Cr-Ad e remoção de EV.c em FI.
+- Inclusão da aba **Alterações em fórmulas**, documentando quatro correções: 9^3 → 10^3 em CMA Solo Cr, Cf.GasSolo.14 → Cf.GasSolo.4 em CMA AR Cr-Ad, remoção de EV.c em FI e correção estrutural material em CMA AS Cr!J56.
 - Manutenção da melhoria textual MF-017 em Highlights Manual CETESB, separando a limitação operacional do parâmetro Lgw da recomendação técnica de linhas de evidência para intrusão de vapores.
 
 ## Arquivos do projeto
@@ -68,3 +68,17 @@ A ferramenta não recalcula avaliações de risco e não substitui a análise cr
 ## Alterações em fórmulas
 
 A aba **Alterações em fórmulas** não classifica SQIs. Ela documenta correções pontuais de fórmulas identificadas entre versões da CETESBRisk e auxilia a triagem de estudos anteriores que possam ter utilizado células, rotas ou posições afetadas. Essas correções não alteram, por si só, a classificação A/B/C/D1/D2, mas podem justificar reavaliação pontual quando a célula corrigida tiver sido efetivamente utilizada em cálculo de risco ou CMA.
+
+
+## v2.2 - atualização consolidada
+
+Principais ajustes da v2.2:
+
+- Padronização da comparação para **CETESBRisk V3.03 × V4.01**.
+- Remoção dos indicadores percentuais com setas no item de resultado da classificação da aba Início.
+- Reorganização da aba Início, com o bloco **Alterações em fórmulas** antes do fluxo decisório.
+- Ampliação do fluxo decisório para incluir células, rotas, módulos e posições de SQI afetadas por correções de fórmula.
+- Inclusão da correção estrutural material em **CMA AS Cr!J56**.
+- Atualização do quadro-resumo da aba Alterações em fórmulas para quatro correções identificadas.
+- Ajuste da redação da correção **FI!I8**, explicitando que se refere à inalação de partículas de solo por crianças.
+- Inclusão, na aba Pesquisa SQI e impacto CMA, de bloco interpretativo sobre vias, matrizes e receptores potencialmente afetados.
